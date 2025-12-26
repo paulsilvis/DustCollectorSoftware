@@ -2,149 +2,105 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import random
-import time
-from typing import Optional
+from dataclasses import dataclass
 
-from ..event_bus import EventBus
-from ..events import Event
-from ..hardware.ads1115 import ADS1115Reader
-
-log = logging.getLogger("adc_watch")
+log = logging.getLogger(__name__)
 
 
-class Debounce:
-    def __init__(self, on_th, off_th, on_ms, off_ms):
-        self.on_th = on_th
-        self.off_th = off_th
-        self.on_ms = on_ms / 1000.0
-        self.off_ms = off_ms / 1000.0
-        self.state = False
-        self._t_above: Optional[float] = None
-        self._t_below: Optional[float] = None
+@dataclass(frozen=True)
+class AdcWatchConfig:
+    i2c_address: int = 0x48
 
-    def update(self, volts: float, now: float) -> Optional[bool]:
-        """
-        Returns:
-            True  -> rising edge (OFF -> ON)
-            False -> falling edge (ON -> OFF)
-            None  -> no edge
-        """
-        if not self.state:
-            if volts >= self.on_th:
-                if self._t_above is None:
-                    self._t_above = now
-                if (now - self._t_above) >= self.on_ms:
-                    self.state = True
-                    self._t_above = None
-                    self._t_below = None
-                    return True
-            else:
-                self._t_above = None
-        else:
-            if volts <= self.off_th:
-                if self._t_below is None:
-                    self._t_below = now
-                if (now - self._t_below) >= self.off_ms:
-                    self.state = False
-                    self._t_above = None
-                    self._t_below = None
-                    return False
-            else:
-                self._t_below = None
+    # Quiet, responsive enough
+    sample_hz: float = 10.0
 
-        return None
+    # Lathe mapping
+    lathe_channel: int = 1  # A1
+
+    # FINAL thresholds (VOLTS at ADC input)
+    lathe_on_threshold: float = 0.040
+    lathe_off_threshold: float = 0.025
+
+    # Stability against noise
+    consecutive_required: int = 3
+
+    # Keep silent at night
+    heartbeat_sec: float = 0.0
 
 
-def _mock_mode(cfg) -> str:
-    mode = str(cfg.raw.get("mock_sim", {}).get("mode", "pathological")).strip().lower()
-    return mode if mode in ("realistic", "pathological") else "pathological"
+async def run_adc_watch(cfg: AdcWatchConfig) -> None:
+    """
+    Quiet ADS1115 lathe detector with hysteresis.
 
+    Logs ONLY on OFF->ON and ON->OFF transitions.
+    """
+    import board  # type: ignore
+    import busio  # type: ignore
+    import adafruit_ads1x15.ads1115 as ADS  # type: ignore
+    from adafruit_ads1x15.analog_in import AnalogIn  # type: ignore
 
-def _mock_value(cfg, tool_index: int, now: float) -> float:
-    ms = cfg.raw.get("mock_sim", {})
-    mode = _mock_mode(cfg)
+    if cfg.sample_hz <= 0:
+        raise ValueError("sample_hz must be > 0")
+    if cfg.consecutive_required < 1:
+        raise ValueError("consecutive_required must be >= 1")
+    if cfg.lathe_channel != 1:
+        raise ValueError("This watcher expects lathe_channel=1 (A1)")
 
-    cycle = float(ms.get("cycle_s", 14))
-    on_s = float(ms.get("on_s", 6))
-    off_mean = float(ms.get("off_mean_v", 0.05))
-    on_mean = float(ms.get("on_mean_v", 0.55))
-    noise = float(ms.get("noise_v", 0.02))
-
-    if mode == "realistic":
-        # Only ONE tool is "on" per cycle, sequentially.
-        #
-        # NOTE: To create an "all tools off" gap, you must have:
-        #   on_s < slot,  where slot = cycle_s / tools
-        #
-        # If on_s >= slot, one tool is ALWAYS on, so the collector never turns off.
-        n = int(ms.get("tools", 4))
-        n = max(1, n)
-        slot = cycle / n
-
-        if on_s >= slot:
-            # Keep the sim usable even with "too large" on_s.
-            # Example: cycle_s=14, tools=4 => slot=3.5s; on_s=4s would be always-on.
-            log.warning(
-                "mock_sim: on_s (%.3fs) >= slot (%.3fs); clamping on_s to 80%% of slot to allow OFF intervals",
-                on_s,
-                slot,
-            )
-            on_s = 0.8 * slot
-
-        phase_in_cycle = now % cycle
-        cur_tool = int(phase_in_cycle // slot) % n
-        phase_in_slot = phase_in_cycle % slot
-
-        mean = on_mean if (tool_index == cur_tool and phase_in_slot < on_s) else off_mean
-    else:
-        # Pathological: staggered phases so multiple tools can overlap.
-        phase = (now + tool_index * (cycle / 4.0)) % cycle
-        mean = on_mean if phase < on_s else off_mean
-
-    return max(0.0, min(1.0, random.gauss(mean, noise)))
-
-
-async def adc_watch(bus: EventBus, cfg, hw):
-    gates = cfg.raw["gates"]["map"]
-    on_th = cfg.raw["debounce"]["on_threshold"]
-    off_th = cfg.raw["debounce"]["off_threshold"]
-    on_ms = cfg.raw["debounce"]["on_min_ms"]
-    off_ms = cfg.raw["debounce"]["off_min_ms"]
-    deb = {name: Debounce(on_th, off_th, on_ms, off_ms) for name in gates}
-
-    ads = None
-    if not cfg.mock:
-        ads = ADS1115Reader(hw.i2c, cfg.raw["i2c"]["ads1115_addr"])
-
-    tick = float(cfg.raw.get("adc", {}).get("tick_s", 0.25))
+    period = 1.0 / cfg.sample_hz
 
     log.info(
-        "adc_watch started (%s) [mock_mode=%s]",
-        "MOCK" if cfg.mock else "REAL",
-        _mock_mode(cfg) if cfg.mock else "n/a",
+        "ADC lathe watch start: addr=0x%02x sample_hz=%.1f "
+        "ON=%.3fV OFF=%.3fV consec=%d",
+        cfg.i2c_address,
+        cfg.sample_hz,
+        cfg.lathe_on_threshold,
+        cfg.lathe_off_threshold,
+        cfg.consecutive_required,
     )
 
-    tool_names = list(gates.keys())
+    i2c = busio.I2C(board.SCL, board.SDA)
+    ads = ADS.ADS1115(i2c, address=cfg.i2c_address)
+    lathe = AnalogIn(ads, ADS.P1)
 
-    while True:
-        now = time.monotonic()
-        for idx, name in enumerate(tool_names):
-            ch = gates[name]["adc_ch"]
-            if cfg.mock:
-                volts = _mock_value(cfg, idx, now)
+    lathe_on = False
+    above_on = 0
+    below_off = 0
+
+    try:
+        while True:
+            v = float(lathe.voltage)
+
+            if not lathe_on:
+                if v >= cfg.lathe_on_threshold:
+                    above_on += 1
+                    if above_on >= cfg.consecutive_required:
+                        lathe_on = True
+                        above_on = 0
+                        below_off = 0
+                        log.info(
+                            "LATHE: ON  (A1=%.3fV >= %.3fV)",
+                            v,
+                            cfg.lathe_on_threshold,
+                        )
+                else:
+                    above_on = 0
             else:
-                assert ads is not None
-                volts = ads.read_volts(ch)
+                if v <= cfg.lathe_off_threshold:
+                    below_off += 1
+                    if below_off >= cfg.consecutive_required:
+                        lathe_on = False
+                        above_on = 0
+                        below_off = 0
+                        log.info(
+                            "LATHE: OFF (A1=%.3fV <= %.3fV)",
+                            v,
+                            cfg.lathe_off_threshold,
+                        )
+                else:
+                    below_off = 0
 
-            edge = deb[name].update(volts, now)
-            if edge is True:
-                await bus.publish(
-                    Event.now("machine.on", f"adc.{name}", tool=name, volts=volts)
-                )
-            elif edge is False:
-                await bus.publish(
-                    Event.now("machine.off", f"adc.{name}", tool=name, volts=volts)
-                )
+            await asyncio.sleep(period)
 
-        await asyncio.sleep(tick)
+    except asyncio.CancelledError:
+        log.info("ADC lathe watch cancelled")
+        raise
