@@ -1,20 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
-PY="$PROJECT_ROOT/.venv/bin/python"
+# ----------------------------
+# DustCollector launcher
+# ----------------------------
 
-if [[ ! -x "$PY" ]]; then
-    echo "ERROR: venv not found. Run ./install.sh first."
+# Config path (override with CONFIG_PATH=...)
+CONFIG_PATH="${CONFIG_PATH:-config/config.yaml}"
+
+# Hardware mode:
+#   mock | real
+# Default: mock (safe)
+HW_MODE="${DUSTCOLLECTOR_HW:-mock}"
+
+if [[ "$HW_MODE" != "mock" && "$HW_MODE" != "real" ]]; then
+    echo "ERROR: DUSTCOLLECTOR_HW must be 'mock' or 'real'"
     exit 1
 fi
 
-export MOCK="${MOCK:-true}"
-export CONFIG_PATH="${CONFIG_PATH:-$PROJECT_ROOT/config/config.yaml}"
+export DUSTCOLLECTOR_HW="$HW_MODE"
 
 echo "== DustCollector run =="
-echo "MOCK=$MOCK"
+echo "HW_MODE=$HW_MODE"
 echo "CONFIG=$CONFIG_PATH"
 echo
 
-exec "$PY" -m src.main --config "$CONFIG_PATH"
+exec python -m src.main --config "$CONFIG_PATH"

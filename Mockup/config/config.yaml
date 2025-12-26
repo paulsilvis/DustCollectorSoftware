@@ -1,7 +1,10 @@
-system:
-  mock: false
-  log_level: INFO
-  serial0_baud: 9600
+logging:
+  level: INFO
+
+hardware:
+  # mock | real
+  # Default is mock if omitted
+  mode: mock
 
 i2c:
   bus: 1
@@ -25,10 +28,10 @@ gates:
   dead_time_ms: 200
   move_timeout_s: 5
   map:
-    tablesaw: {fwd_bit: 0, rev_bit: 1, led_red: 0, led_green: 1, adc_ch: 0}
-    lathe:    {fwd_bit: 2, rev_bit: 3, led_red: 2, led_green: 3, adc_ch: 1}
-    drill:    {fwd_bit: 4, rev_bit: 5, led_red: 4, led_green: 5, adc_ch: 2}
-    spare:    {fwd_bit: 6, rev_bit: 7, led_red: 6, led_green: 7, adc_ch: 3}
+    tablesaw: { fwd_bit: 0, rev_bit: 1, led_red: 0, led_green: 1, adc_ch: 0 }
+    lathe:    { fwd_bit: 2, rev_bit: 3, led_red: 2, led_green: 3, adc_ch: 1 }
+    drill:    { fwd_bit: 4, rev_bit: 5, led_red: 4, led_green: 5, adc_ch: 2 }
+    spare:    { fwd_bit: 6, rev_bit: 7, led_red: 6, led_green: 7, adc_ch: 3 }
 
 debounce:
   on_threshold: 0.30
@@ -53,20 +56,16 @@ safety:
   pause_fun_on_severe_aqm: true
   min_off_lockout_ms: 0
 
-
 mock_sim:
-  mode: pathological  # realistic|pathological
+  # Used ONLY when hardware.mode == mock
+  mode: pathological   # realistic | pathological
   tools: 4
-  # Laptop simulation knobs (used only when system.mock=true)
   tick_s: 0.2
-  # Per tool: an on/off cycle in seconds.
   cycle_s: 14
   on_s: 6
-  # Voltage model for the ADC conditioner outputs (0-1V typical)
   off_mean_v: 0.05
   on_mean_v: 0.55
   noise_v: 0.02
-  # PMS1003 simulated PM2.5 (ug/m3) baseline and "dust event" bump
   pm25_base: 8
   pm25_bump: 45
   pm25_bump_s: 8

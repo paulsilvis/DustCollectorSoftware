@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict
@@ -8,32 +7,37 @@ from typing import Any, Dict
 import yaml
 
 
-def _env_truthy(name: str) -> bool | None:
-    v = os.environ.get(name)
-    if v is None:
-        return None
-    v = v.strip().lower()
-    if v in ("1", "true", "yes", "y", "on"):
-        return True
-    if v in ("0", "false", "no", "n", "off"):
-        return False
-    return None
+def _is_mock_from_raw(raw: Dict[str, Any]) -> bool:
+    hw = raw.get("hardware", {}) or {}
+    mode = str(hw.get("mode", "mock")).strip().lower()
+    return mode != "real"
 
 
 @dataclass(frozen=True)
 class AppConfig:
+    """
+    Immutable application configuration.
+
+    During the cutover we keep cfg.mock as a derived compatibility flag
+    because several tasks still branch on it. It is derived solely from
+    config (hardware.mode) to avoid multiple conflicting switches.
+    """
     raw: Dict[str, Any]
-    mock: bool
     log_level: str
+    mock: bool
 
     @staticmethod
     def load(path: str) -> "AppConfig":
         p = Path(path)
-        raw = yaml.safe_load(p.read_text(encoding="utf-8"))
-        # Base config value
-        mock_cfg = bool(raw.get("system", {}).get("mock", False))
-        # Env override (lets you run MOCK=true without editing config)
-        mock_env = _env_truthy("MOCK")
-        mock = mock_env if mock_env is not None else mock_cfg
-        log_level = str(raw.get("logging", {}).get("level", "INFO")).upper()
-        return AppConfig(raw=raw, mock=mock, log_level=log_level)
+        raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+
+        log_level = (
+            raw.get("logging", {})
+            .get("level", "INFO")
+        )
+
+        return AppConfig(
+            raw=raw,
+            log_level=str(log_level).upper(),
+            mock=_is_mock_from_raw(raw),
+        )
