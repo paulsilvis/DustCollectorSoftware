@@ -1,0 +1,8 @@
+# Minimal deps (extend as needed)
+smbus2==0.4.3
+adafruit-circuitpython-ads1x15==2.4.4
+RPi.GPIO==0.7.1
+pyserial==3.5
+pillow==10.4.0
+rich==13.7.1
+pyyaml==6.0.2

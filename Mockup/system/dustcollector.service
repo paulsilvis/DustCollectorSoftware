@@ -1,0 +1,16 @@
+[Unit]
+Description=Dust Collector Controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=%h/dustcollector
+EnvironmentFile=%h/dustcollector/.env
+ExecStart=%h/dustcollector/.venv/bin/python -m src.main --config %h/dustcollector/config/config.yaml
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

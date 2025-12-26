@@ -1,0 +1,47 @@
+# -------------------------
+# Python / build artifacts
+# -------------------------
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.pyo
+build/
+dist/
+*.egg-info/
+
+# -------------------------
+# Virtual environments
+# -------------------------
+.venv/
+venv/
+env/
+ENV/
+venv*/
+env*/
+
+# -------------------------
+# Environment / secrets
+# -------------------------
+.env
+.env.*
+*.local
+
+# -------------------------
+# Obsidian junk
+# -------------------------
+.obsidian/
+
+# -------------------------
+# Editors / OS
+# -------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# -------------------------
+# Logs
+# -------------------------
+*.log
