@@ -1,13 +1,14 @@
 from __future__ import annotations
+
 import asyncio
-import time
 import logging
 import random
+import time
 from typing import Optional
 
+from ..event_bus import EventBus
 from ..events import Event
 from ..hardware.ads1115 import ADS1115Reader
-from ..event_bus import EventBus
 
 log = logging.getLogger("adc_watch")
 
@@ -16,31 +17,47 @@ class Debounce:
     def __init__(self, on_th, off_th, on_ms, off_ms):
         self.on_th = on_th
         self.off_th = off_th
-        self.on_s = on_ms / 1000.0
-        self.off_s = off_ms / 1000.0
+        self.on_ms = on_ms / 1000.0
+        self.off_ms = off_ms / 1000.0
         self.state = False
-        self.t_ref = None
+        self._t_above: Optional[float] = None
+        self._t_below: Optional[float] = None
 
-    def update(self, value: float, now: float) -> bool | None:
-        target = True if not self.state else False
-        th = self.on_th if target else self.off_th
-        hold = self.on_s if target else self.off_s
-        cond = value >= th if target else value <= th
-        if cond:
-            if self.t_ref is None:
-                self.t_ref = now
-            elif now - self.t_ref >= hold:
-                self.state = target
-                self.t_ref = None
-                return self.state
+    def update(self, volts: float, now: float) -> Optional[bool]:
+        """
+        Returns:
+            True  -> rising edge (OFF -> ON)
+            False -> falling edge (ON -> OFF)
+            None  -> no edge
+        """
+        if not self.state:
+            if volts >= self.on_th:
+                if self._t_above is None:
+                    self._t_above = now
+                if (now - self._t_above) >= self.on_ms:
+                    self.state = True
+                    self._t_above = None
+                    self._t_below = None
+                    return True
+            else:
+                self._t_above = None
         else:
-            self.t_ref = None
+            if volts <= self.off_th:
+                if self._t_below is None:
+                    self._t_below = now
+                if (now - self._t_below) >= self.off_ms:
+                    self.state = False
+                    self._t_above = None
+                    self._t_below = None
+                    return False
+            else:
+                self._t_below = None
+
         return None
 
 
 def _mock_mode(cfg) -> str:
-    ms = cfg.raw.get("mock_sim", {})
-    mode = str(ms.get("mode", "pathological")).strip().lower()
+    mode = str(cfg.raw.get("mock_sim", {}).get("mode", "pathological")).strip().lower()
     return mode if mode in ("realistic", "pathological") else "pathological"
 
 
@@ -56,10 +73,30 @@ def _mock_value(cfg, tool_index: int, now: float) -> float:
 
     if mode == "realistic":
         # Only ONE tool is "on" per cycle, sequentially.
+        #
+        # NOTE: To create an "all tools off" gap, you must have:
+        #   on_s < slot,  where slot = cycle_s / tools
+        #
+        # If on_s >= slot, one tool is ALWAYS on, so the collector never turns off.
         n = int(ms.get("tools", 4))
-        slot = cycle / max(1, n)
-        cur_tool = int((now % cycle) // slot) % max(1, n)
-        mean = on_mean if tool_index == cur_tool and (now % slot) < on_s else off_mean
+        n = max(1, n)
+        slot = cycle / n
+
+        if on_s >= slot:
+            # Keep the sim usable even with "too large" on_s.
+            # Example: cycle_s=14, tools=4 => slot=3.5s; on_s=4s would be always-on.
+            log.warning(
+                "mock_sim: on_s (%.3fs) >= slot (%.3fs); clamping on_s to 80%% of slot to allow OFF intervals",
+                on_s,
+                slot,
+            )
+            on_s = 0.8 * slot
+
+        phase_in_cycle = now % cycle
+        cur_tool = int(phase_in_cycle // slot) % n
+        phase_in_slot = phase_in_cycle % slot
+
+        mean = on_mean if (tool_index == cur_tool and phase_in_slot < on_s) else off_mean
     else:
         # Pathological: staggered phases so multiple tools can overlap.
         phase = (now + tool_index * (cycle / 4.0)) % cycle
@@ -78,12 +115,16 @@ async def adc_watch(bus: EventBus, cfg, hw):
 
     ads = None
     if not cfg.mock:
-        ads = ADS1115Reader(addr=cfg.raw["i2c"]["ads1115_addr"])
+        ads = ADS1115Reader(hw.i2c, cfg.raw["i2c"]["ads1115_addr"])
 
-    ms = cfg.raw.get("mock_sim", {})
-    tick = float(ms.get("tick_s", 0.2))
+    tick = float(cfg.raw.get("adc", {}).get("tick_s", 0.25))
 
-    log.info("adc_watch started (%s) [mock_mode=%s]", "MOCK" if cfg.mock else "REAL", _mock_mode(cfg))
+    log.info(
+        "adc_watch started (%s) [mock_mode=%s]",
+        "MOCK" if cfg.mock else "REAL",
+        _mock_mode(cfg) if cfg.mock else "n/a",
+    )
+
     tool_names = list(gates.keys())
 
     while True:
@@ -95,9 +136,15 @@ async def adc_watch(bus: EventBus, cfg, hw):
             else:
                 assert ads is not None
                 volts = ads.read_volts(ch)
+
             edge = deb[name].update(volts, now)
             if edge is True:
-                await bus.publish(Event.now("machine.on", f"adc.{name}", tool=name, volts=volts))
+                await bus.publish(
+                    Event.now("machine.on", f"adc.{name}", tool=name, volts=volts)
+                )
             elif edge is False:
-                await bus.publish(Event.now("machine.off", f"adc.{name}", tool=name, volts=volts))
+                await bus.publish(
+                    Event.now("machine.off", f"adc.{name}", tool=name, volts=volts)
+                )
+
         await asyncio.sleep(tick)

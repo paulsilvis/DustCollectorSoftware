@@ -4,12 +4,12 @@ import logging
 import os
 from typing import Literal, Optional
 
+from .gpio import GPIOOut
 from .i2c_bus import I2CBus
 from .pcf8574 import PCF8574
 from .uart import open_serial
 
 log = logging.getLogger("hardware")
-
 
 HardwareMode = Literal["mock", "real"]
 
@@ -24,7 +24,6 @@ def _normalize_mode(s: Optional[str]) -> Optional[HardwareMode]:
 
 
 def _cfg_hw_mode(cfg) -> HardwareMode:
-    # Default: mock (safety)
     raw = getattr(cfg, "raw", {}) or {}
     hw = raw.get("hardware", {}) or {}
     mode = _normalize_mode(hw.get("mode"))
@@ -35,19 +34,19 @@ def _env_hw_mode() -> Optional[HardwareMode]:
     return _normalize_mode(os.environ.get("DUSTCOLLECTOR_HW"))
 
 
+def _cfg_outputs_enabled(cfg) -> bool:
+    raw = getattr(cfg, "raw", {}) or {}
+    hw = raw.get("hardware", {}) or {}
+    # Default: False (safety)
+    return bool(hw.get("outputs_enabled", False))
+
+
 def get_hardware(cfg):
     """
     Single, centralized selector for mock vs real hardware.
-
-    Selection precedence:
-      1) env var DUSTCOLLECTOR_HW=mock|real
-      2) config: hardware.mode: mock|real
-      3) default: mock
     """
     mode_env = _env_hw_mode()
     mode_cfg = _cfg_hw_mode(cfg)
-    mode: HardwareMode
-    source: str
 
     if mode_env is not None:
         mode = mode_env
@@ -59,9 +58,7 @@ def get_hardware(cfg):
     log.warning("HW mode = %s (selected via %s)", mode, source)
 
     if mode == "mock":
-        # Local import avoids importing mock code in real runs unless needed
         from .mock_hw import MockHardware
-
         return MockHardware(cfg)
 
     return Hardware(cfg)
@@ -71,31 +68,67 @@ class Hardware:
     """
     Real hardware implementation.
 
-    Notes:
-    - This class is intentionally thin: it wires together real drivers.
-    - Safety/enable gating is handled at higher level (or via cfg later).
+    Safety:
+    - outputs_enabled defaults to False
+    - when inhibited, output methods log and do nothing
     """
 
     def __init__(self, cfg):
         self.cfg = cfg
+        self.outputs_enabled = _cfg_outputs_enabled(cfg)
+
+        # I2C + expanders
         self.i2c = I2CBus(cfg.raw["i2c"]["bus"])
         self.pcf_led = PCF8574(self.i2c, cfg.raw["i2c"]["pcf_led_addr"])
         self.pcf_act = PCF8574(self.i2c, cfg.raw["i2c"]["pcf_act_addr"])
         self.pcf_spares = [
-            PCF8574(self.i2c, a) for a in cfg.raw["i2c"]["pcf_spare_addrs"]
+            PCF8574(self.i2c, addr)
+            for addr in cfg.raw["i2c"]["pcf_spare_addrs"]
         ]
-        self.serial = open_serial(cfg.raw["uart"]["port"], cfg.raw["uart"]["baud"])
-        self.ser_tx = self.serial  # legacy name used by funhouse
+
+        # UART
+        self.serial = open_serial(
+            cfg.raw["uart"]["port"],
+            cfg.raw["uart"]["baud"],
+        )
+        self.ser_tx = self.serial  # legacy alias
+
+        # GPIO SSR outputs (BCM numbering)
+        collector_pin = int(cfg.raw["gpio"]["collector_ssr"])
+        fan_pin = int(cfg.raw["gpio"]["fan_ssr"])
+        self.gpio25 = GPIOOut(collector_pin, active_high=True)
+        self.gpio24 = GPIOOut(fan_pin, active_high=True)
+
+        log.warning(
+            "HW outputs_enabled=%s (set hardware.outputs_enabled=true to energize outputs)",
+            self.outputs_enabled,
+        )
+
+    # ---------------- Safety gate ----------------
+
+    def _inhibited(self, what: str) -> bool:
+        if self.outputs_enabled:
+            return False
+        log.warning("OUTPUT INHIBITED: %s", what)
+        return True
+
+    # ---------------- Public API ----------------
 
     def pcf_write_init(self) -> None:
-        # Idle high everywhere on outputs
+        if self._inhibited("pcf_write_init()"):
+            return
         self.pcf_led.write_byte(0xFF)
         self.pcf_act.write_byte(0xFF)
 
     def gpio_set_ssr(self, gpio, on: bool) -> None:
+        if self._inhibited(
+            f"gpio_set_ssr(pin={getattr(gpio, 'pin', '?')}, on={on})"
+        ):
+            return
         gpio.write(on)
 
     def serial_write_line(self, line: str) -> None:
+        # Serial TX is non-dangerous; allow even when outputs inhibited
         self.serial.write((line.strip() + "\n").encode("utf-8"))
 
     def led_set_pair(
@@ -106,7 +139,12 @@ class Hardware:
         red_on: bool,
         green_on: bool,
     ) -> None:
-        # active-low sink: 0 = ON, 1 = OFF
+        if self._inhibited(
+            f"led_set_pair(r={red_bit}, g={green_bit}, "
+            f"red_on={red_on}, green_on={green_on})"
+        ):
+            return
+
         state = self.pcf_led.state
 
         def setbit(st: int, b: int, on_: bool) -> int:
@@ -117,15 +155,16 @@ class Hardware:
         self.pcf_led.write_byte(state)
 
     # ---- Relay-bank helpers (atomic masked updates) ----
+
     def _pcf_act_update(self, *, set_mask: int = 0, clear_mask: int = 0) -> None:
-        # Apply both masks to cached state and write one byte.
-        # set_mask: bits forced to 1
-        # clear_mask: bits forced to 0
+        if self._inhibited(
+            f"_pcf_act_update(set=0x{set_mask:02X}, clear=0x{clear_mask:02X})"
+        ):
+            return
         new_state = (self.pcf_act.state | (set_mask & 0xFF)) & ~(clear_mask & 0xFF)
         self.pcf_act.write_byte(new_state)
 
     def relays_stop_gate(self, fwd_bit: int, rev_bit: int) -> None:
-        # Idle both relays high (active-low board)
         self._pcf_act_update(set_mask=(1 << fwd_bit) | (1 << rev_bit))
 
     def relays_drive(self, bit: int, active_low_on: bool) -> None:

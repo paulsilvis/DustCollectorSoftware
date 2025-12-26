@@ -5,6 +5,7 @@ hardware:
   # mock | real
   # Default is mock if omitted
   mode: mock
+  outputs_enabled: false
 
 i2c:
   bus: 1
@@ -58,11 +59,12 @@ safety:
 
 mock_sim:
   # Used ONLY when hardware.mode == mock
-  mode: pathological   # realistic | pathological
+  # mode: pathological   # realistic | pathological
+  mode: realistic
   tools: 4
   tick_s: 0.2
-  cycle_s: 14
-  on_s: 6
+  cycle_s: 20
+  on_s: 2
   off_mean_v: 0.05
   on_mean_v: 0.55
   noise_v: 0.02
