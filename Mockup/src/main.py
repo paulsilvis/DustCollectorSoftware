@@ -52,31 +52,15 @@ async def _run_app(config_path: str) -> None:
     # Always-on (quiet): event logger
     tasks.append(asyncio.create_task(_event_logger(bus), name="event_logger"))
 
-    # Controller stub: reacts to lathe events (no actuation yet)
+    # Lathe controller: in mock mode, it drives Gate4 LEDs.
     from .tasks.lathe_gate_controller import run_lathe_gate_controller
 
     tasks.append(
         asyncio.create_task(run_lathe_gate_controller(bus), name="lathe_gate_ctrl")
     )
-    log.info("Lathe gate controller enabled (stub: log only)")
+    log.info("Lathe gate controller enabled (Gate4 LED actuator)")
 
-    # MOCK-ONLY: Gate4 LED diagnostic
-    if is_mock:
-        from .tasks.gate4_led_diag import PcfLedMapping, run_gate4_led_diag
-
-        mapping = PcfLedMapping(
-            bus=1,
-            addr=0x20,
-            green_bit=3,
-            red_bit=7,
-            active_low=True,
-        )
-        tasks.append(
-            asyncio.create_task(run_gate4_led_diag(mapping), name="gate4_led_diag")
-        )
-        log.info("Mock mode: Gate4 LED diagnostic enabled")
-
-    # Quiet lathe detector (A1) -> publishes events
+    # Lathe detector (A1) -> publishes events
     try:
         from .tasks.adc_watch import AdcWatchConfig, run_adc_watch
 
@@ -92,6 +76,10 @@ async def _run_app(config_path: str) -> None:
         log.info("ADC lathe detector enabled (quiet, evented)")
     except Exception:
         log.exception("ADC lathe detector failed to start")
+
+    # Note: We intentionally do NOT run gate4_led_diag anymore.
+    if is_mock:
+        log.info("Mock mode: Gate4 LED diag disabled (Gate4 owned by controller)")
 
     try:
         while True:
