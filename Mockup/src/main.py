@@ -7,6 +7,7 @@ import os
 from typing import Optional
 
 from .config_loader import AppConfig
+from .event_bus import EventBus
 from .util.logging_setup import setup_logging
 
 log = logging.getLogger(__name__)
@@ -25,6 +26,17 @@ def _hw_mode_from_env() -> str:
     return hw_mode
 
 
+async def _event_logger(bus: EventBus) -> None:
+    q = bus.subscribe(maxsize=100)
+    try:
+        while True:
+            ev = await q.get()
+            log.info("EVENT: %-10s src=%s data=%s", ev.type, ev.src, ev.data)
+    except asyncio.CancelledError:
+        log.info("Event logger cancelled")
+        raise
+
+
 async def _run_app(config_path: str) -> None:
     setup_logging()
 
@@ -34,7 +46,19 @@ async def _run_app(config_path: str) -> None:
     _ = AppConfig.load(config_path)
     log.info("Boot: hw_mode=%s is_mock=%s config=%s", hw_mode, is_mock, config_path)
 
+    bus = EventBus()
     tasks: list[asyncio.Task[None]] = []
+
+    # Always-on (quiet): event logger
+    tasks.append(asyncio.create_task(_event_logger(bus), name="event_logger"))
+
+    # Controller stub: reacts to lathe events (no actuation yet)
+    from .tasks.lathe_gate_controller import run_lathe_gate_controller
+
+    tasks.append(
+        asyncio.create_task(run_lathe_gate_controller(bus), name="lathe_gate_ctrl")
+    )
+    log.info("Lathe gate controller enabled (stub: log only)")
 
     # MOCK-ONLY: Gate4 LED diagnostic
     if is_mock:
@@ -52,7 +76,7 @@ async def _run_app(config_path: str) -> None:
         )
         log.info("Mock mode: Gate4 LED diagnostic enabled")
 
-    # Quiet lathe detector (A1)
+    # Quiet lathe detector (A1) -> publishes events
     try:
         from .tasks.adc_watch import AdcWatchConfig, run_adc_watch
 
@@ -63,12 +87,9 @@ async def _run_app(config_path: str) -> None:
             lathe_on_threshold=0.040,
             lathe_off_threshold=0.025,
             consecutive_required=3,
-            heartbeat_sec=0.0,
         )
-        tasks.append(
-            asyncio.create_task(run_adc_watch(adc_cfg), name="adc_watch")
-        )
-        log.info("ADC lathe detector enabled (quiet)")
+        tasks.append(asyncio.create_task(run_adc_watch(adc_cfg, bus), name="adc_watch"))
+        log.info("ADC lathe detector enabled (quiet, evented)")
     except Exception:
         log.exception("ADC lathe detector failed to start")
 

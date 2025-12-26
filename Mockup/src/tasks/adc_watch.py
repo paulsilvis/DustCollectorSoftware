@@ -4,6 +4,9 @@ import asyncio
 import logging
 from dataclasses import dataclass
 
+from ..events import Event
+from ..event_bus import EventBus
+
 log = logging.getLogger(__name__)
 
 
@@ -24,15 +27,15 @@ class AdcWatchConfig:
     # Stability against noise
     consecutive_required: int = 3
 
-    # Keep silent at night
-    heartbeat_sec: float = 0.0
 
-
-async def run_adc_watch(cfg: AdcWatchConfig) -> None:
+async def run_adc_watch(cfg: AdcWatchConfig, bus: EventBus) -> None:
     """
     Quiet ADS1115 lathe detector with hysteresis.
 
-    Logs ONLY on OFF->ON and ON->OFF transitions.
+    Publishes ONLY on OFF->ON and ON->OFF transitions:
+      - Event type: "lathe.on" / "lathe.off"
+      - src: "adc.a1"
+      - data: {"v": <voltage>}
     """
     import board  # type: ignore
     import busio  # type: ignore
@@ -77,11 +80,7 @@ async def run_adc_watch(cfg: AdcWatchConfig) -> None:
                         lathe_on = True
                         above_on = 0
                         below_off = 0
-                        log.info(
-                            "LATHE: ON  (A1=%.3fV >= %.3fV)",
-                            v,
-                            cfg.lathe_on_threshold,
-                        )
+                        await bus.publish(Event.now("lathe.on", "adc.a1", v=v))
                 else:
                     above_on = 0
             else:
@@ -91,11 +90,7 @@ async def run_adc_watch(cfg: AdcWatchConfig) -> None:
                         lathe_on = False
                         above_on = 0
                         below_off = 0
-                        log.info(
-                            "LATHE: OFF (A1=%.3fV <= %.3fV)",
-                            v,
-                            cfg.lathe_off_threshold,
-                        )
+                        await bus.publish(Event.now("lathe.off", "adc.a1", v=v))
                 else:
                     below_off = 0
 
