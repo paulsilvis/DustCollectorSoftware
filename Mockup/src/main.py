@@ -82,25 +82,30 @@ async def _run_app(config_path: str) -> None:
         log.info("Mock mode: Gate4 LED diag disabled (Gate4 owned by controller)")
 
     try:
+        # Sleep forever; cancellation will break out via CancelledError.
         while True:
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(3600.0)
     finally:
+        log.info("Shutdown: cancelling tasks")
         for t in tasks:
             t.cancel()
-        for t in tasks:
-            try:
-                await t
-            except asyncio.CancelledError:
-                pass
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Optional: log non-cancel exceptions from tasks.
+        for name, res in zip([t.get_name() for t in tasks], results):
+            if isinstance(res, Exception) and not isinstance(res, asyncio.CancelledError):
+                log.error("Task %s exited with error: %r", name, res)
+        log.info("Shutdown complete")
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = _parse_args(argv)
     try:
         asyncio.run(_run_app(args.config))
-    except KeyboardInterrupt:
         return 0
-    return 0
+    except KeyboardInterrupt:
+        # Make Ctrl-C exit unambiguous.
+        log.info("KeyboardInterrupt: exiting")
+        return 130
 
 
 if __name__ == "__main__":

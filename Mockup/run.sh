@@ -1,38 +1,64 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ----------------------------
-# DustCollector launcher
-# ----------------------------
-
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 
-# Config path (override with CONFIG_PATH=...)
-CONFIG_PATH="${CONFIG_PATH:-config/config.yaml}"
-
-# Hardware mode:
-#   mock | real
-# Default: mock (safe)
-HW_MODE="${DUSTCOLLECTOR_HW:-mock}"
-
-if [[ "$HW_MODE" != "mock" && "$HW_MODE" != "real" ]]; then
-    echo "ERROR: DUSTCOLLECTOR_HW must be 'mock' or 'real'"
-    exit 1
+# Prefer the venv python if it exists; otherwise fall back.
+PY="$PROJECT_ROOT/.venv/bin/python"
+if [[ ! -x "$PY" ]]; then
+  PY="$(command -v python3 || true)"
+fi
+if [[ -z "${PY:-}" ]]; then
+  echo "ERROR: python not found (expected .venv or python3 in PATH)" >&2
+  exit 1
 fi
 
-export DUSTCOLLECTOR_HW="$HW_MODE"
+# Config can be overridden by env; otherwise default.
+CONFIG="${CONFIG:-config/config.yaml}"
 
-VENV_PY="$PROJECT_ROOT/.venv/bin/python"
-if [[ ! -x "$VENV_PY" ]]; then
-    echo "ERROR: venv python not found at: $VENV_PY"
-    echo "Run: ./install.sh"
-    exit 1
+# Resolve HW_MODE from env, without clobbering caller overrides.
+# Priority:
+#   1) HW_MODE explicit (real|mock)
+#   2) MOCK boolean-ish (true/false/1/0/yes/no/on/off)
+#   3) default mock
+_hw_mode_from_mock() {
+  local v="${1,,}"
+  case "$v" in
+    1|true|yes|on)  echo "mock" ;;
+    0|false|no|off) echo "real" ;;
+    *)
+      echo "ERROR: invalid MOCK value '$1' (use true/false)" >&2
+      exit 2
+      ;;
+  esac
+}
+
+if [[ -n "${HW_MODE-}" ]]; then
+  case "${HW_MODE,,}" in
+    mock|real) : ;;
+    *)
+      echo "ERROR: invalid HW_MODE '$HW_MODE' (use mock|real)" >&2
+      exit 2
+      ;;
+  esac
+else
+  if [[ -n "${MOCK-}" ]]; then
+    HW_MODE="$(_hw_mode_from_mock "$MOCK")"
+  else
+    HW_MODE="mock"
+  fi
 fi
 
 echo "== DustCollector run =="
 echo "HW_MODE=$HW_MODE"
-echo "CONFIG=$CONFIG_PATH"
-echo "PY=$VENV_PY"
+echo "CONFIG=$CONFIG"
+echo "PY=$PY"
 echo
 
-exec "$VENV_PY" -m src.main --config "$CONFIG_PATH"
+# Export the env var your Python actually reads.
+export DUSTCOLLECTOR_HW="$HW_MODE"
+
+# Preserve CONFIG for convenience/debugging (Python still gets --config).
+export CONFIG
+
+exec "$PY" -m src.main --config "$CONFIG" "$@"
