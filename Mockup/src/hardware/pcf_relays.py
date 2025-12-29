@@ -12,6 +12,15 @@ log = logging.getLogger(__name__)
 class PcfRelaysConfig:
     bus: int
     addr: int
+
+    # IMPORTANT:
+    # active_low refers to the *PCF8574 output pin polarity*:
+    # - active_low=True  => PCF drives LOW to energize (bit=0 means ON)
+    # - active_low=False => PCF drives HIGH to energize (bit=1 means ON)
+    #
+    # Your proven wiring for relays is:
+    #   PCF -> ULN2803 (inverts) -> relay inputs (active-low jumper)
+    # Therefore the effective PCF polarity is ACTIVE-HIGH => active_low=False.
     active_low: bool = True
 
 
@@ -22,7 +31,7 @@ class PcfRelays:
     Notes:
     - This is a *byte* device: writes replace all 8 outputs.
     - We do read-modify-write and touch only the specified bits.
-    - active_low=True means: drive LOW to energize relay.
+    - active_low is defined at the PCF output pin (see PcfRelaysConfig).
     - We capture the original byte on init so we can restore it (optional).
     """
 
@@ -58,19 +67,20 @@ class PcfRelays:
         self._write_byte(v)
         self._cur = v
 
-    def stop_pair(self, open_bit: int, close_bit: int) -> None:
+    def stop_pair(self, bit_a: int, bit_b: int) -> None:
         base = self._read_byte()
         v = base
-        v = self._set_bit(v, open_bit, False)
-        v = self._set_bit(v, close_bit, False)
+        v = self._set_bit(v, bit_a, False)
+        v = self._set_bit(v, bit_b, False)
         self._write_byte(v)
         self._cur = v
 
     def all_off(self) -> None:
-        # Safest known state for PCF outputs in most relay-input scenarios:
-        # drive all pins HIGH, which corresponds to OFF for active-low modules.
-        self._write_byte(0xFF)
-        self._cur = 0xFF
+        # For PCF-active-low: OFF = HIGH => 0xFF
+        # For PCF-active-high: OFF = LOW  => 0x00  (matches your openclose.py)
+        off = 0xFF if self._cfg.active_low else 0x00
+        self._write_byte(off)
+        self._cur = off
 
     # -------- internals --------
 
@@ -78,9 +88,12 @@ class PcfRelays:
         return 1 << bit
 
     def _set_bit(self, byte_val: int, bit: int, on: bool) -> int:
-        # For active_low relays:
+        # If PCF is active_low:
         #   on=True  -> drive LOW  -> bit=0
         #   on=False -> drive HIGH -> bit=1
+        # If PCF is active_high:
+        #   on=True  -> drive HIGH -> bit=1
+        #   on=False -> drive LOW  -> bit=0
         drive_high = (not on) if self._cfg.active_low else on
         return (
             (byte_val | self._mask(bit))

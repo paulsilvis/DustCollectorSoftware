@@ -12,8 +12,11 @@ log = logging.getLogger(__name__)
 SAW_LED_GREEN_BIT = 6
 SAW_LED_RED_BIT = 2
 
-SAW_RELAY_OPEN_BIT = 7
-SAW_RELAY_CLOSE_BIT = 6
+# Empirically verified:
+# - relay bit 6 energize -> gate OPENS
+# - relay bit 7 energize -> gate CLOSES
+SAW_RELAY_OPEN_BIT = 6
+SAW_RELAY_CLOSE_BIT = 7
 
 RELAY_DEADTIME_S = 0.10
 MAX_DRIVE_S = 6.0

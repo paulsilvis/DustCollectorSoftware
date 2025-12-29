@@ -51,7 +51,10 @@ async def _run_app(config_path: str) -> None:
     tasks: list[asyncio.Task[None]] = []
 
     # Shared relays @ 0x21 + shared lock for atomic read/modify/write
-    relays = PcfRelays(PcfRelaysConfig(bus=1, addr=0x21, active_low=True))
+    #
+    # IMPORTANT: Your proven chain is PCF -> ULN2803 (invert) -> relay inputs (active-low),
+    # so the PCF polarity is ACTIVE-HIGH: PCF bit=1 energizes relay.
+    relays = PcfRelays(PcfRelaysConfig(bus=1, addr=0x21, active_low=False))
     relay_lock = asyncio.Lock()
     try:
         relays.all_off()
