@@ -5,35 +5,101 @@ import logging
 
 from ..event_bus import EventBus
 from ..hardware.pcf_leds import PcfLedPair, PcfLedsConfig
+from ..hardware.pcf_relays import PcfRelays, PcfRelaysConfig
 
 log = logging.getLogger(__name__)
+
+# Relays live on PCF8574 @ 0x21 (your proven wiring from yy_new.py)
+LATHE_RELAY_OPEN_BIT = 5
+LATHE_RELAY_CLOSE_BIT = 4
+
+# Safety / behavior
+RELAY_DEADTIME_S = 0.10
+MAX_DRIVE_S = 6.0
 
 
 async def run_lathe_gate_controller(bus: EventBus) -> None:
     """
-    Gate4 LED actuator controller (PCF8574).
+    Lathe gate controller:
+      - lathe.on  -> LED GREEN, drive OPEN for MAX_DRIVE_S then stop
+      - lathe.off -> LED RED,   drive CLOSE for MAX_DRIVE_S then stop
 
-    Semantics:
-    - lathe.on  -> GREEN solid  (gate "open"/running)
-    - lathe.off -> RED solid    (gate "closed"/stopped)
-
-    Note: The PCF8574 board wiring is swapped relative to our initial assumption,
-    so green/red bits are swapped here to match physical LED colors.
+    Concurrency:
+      - One motion at a time. New command cancels prior motion safely.
     """
     q = bus.subscribe(maxsize=100)
 
-    cfg = PcfLedsConfig(
-        bus=1,
-        addr=0x20,
-        green_bit=7,  # swapped
-        red_bit=3,    # swapped
-        active_low=True,
+    leds = PcfLedPair(
+        PcfLedsConfig(
+            bus=1,
+            addr=0x20,
+            green_bit=7,
+            red_bit=3,
+            active_low=True,
+        )
     )
 
-    leds = PcfLedPair(cfg)
+    relays = PcfRelays(
+        PcfRelaysConfig(
+            bus=1,
+            addr=0x21,
+            active_low=True,
+        )
+    )
 
-    # Default state: assume lathe is OFF at boot
+    # Prevent interleaved open/close sequences and ensure "stop pair" is atomic
+    motion_lock = asyncio.Lock()
+    motion_task: asyncio.Task[None] | None = None
+
+    async def _stop_relays() -> None:
+        async with motion_lock:
+            relays.stop_pair(LATHE_RELAY_OPEN_BIT, LATHE_RELAY_CLOSE_BIT)
+
+    async def _start_open() -> None:
+        async with motion_lock:
+            # Ensure CLOSE is off first, then deadtime, then OPEN on
+            relays.set_relay(LATHE_RELAY_CLOSE_BIT, False)
+        await asyncio.sleep(RELAY_DEADTIME_S)
+        async with motion_lock:
+            relays.set_relay(LATHE_RELAY_OPEN_BIT, True)
+
+    async def _start_close() -> None:
+        async with motion_lock:
+            # Ensure OPEN is off first, then deadtime, then CLOSE on
+            relays.set_relay(LATHE_RELAY_OPEN_BIT, False)
+        await asyncio.sleep(RELAY_DEADTIME_S)
+        async with motion_lock:
+            relays.set_relay(LATHE_RELAY_CLOSE_BIT, True)
+
+    async def _drive_open_then_stop() -> None:
+        try:
+            await _start_open()
+            await asyncio.sleep(MAX_DRIVE_S)
+        finally:
+            await _stop_relays()
+
+    async def _drive_close_then_stop() -> None:
+        try:
+            await _start_close()
+            await asyncio.sleep(MAX_DRIVE_S)
+        finally:
+            await _stop_relays()
+
+    async def _cancel_motion() -> None:
+        nonlocal motion_task
+        if motion_task is None:
+            return
+        motion_task.cancel()
+        try:
+            await motion_task
+        except asyncio.CancelledError:
+            pass
+        finally:
+            motion_task = None
+
+    # Boot state
     leds.set_red()
+    await _stop_relays()
     log.info("LATHE CTRL: boot -> CLOSED (Gate4 RED)")
 
     try:
@@ -43,21 +109,35 @@ async def run_lathe_gate_controller(bus: EventBus) -> None:
             if ev.type == "lathe.on":
                 leds.set_green()
                 log.info("LATHE CTRL: OPEN (Gate4 GREEN)")
+                await _cancel_motion()
+                motion_task = asyncio.create_task(_drive_open_then_stop())
 
             elif ev.type == "lathe.off":
                 leds.set_red()
                 log.info("LATHE CTRL: CLOSE (Gate4 RED)")
-
-            else:
-                # Keep this noisy log OFF unless debugging.
-                # log.debug("LATHE CTRL: ignoring event type=%s src=%s", ev.type, ev.src)
-                pass
+                await _cancel_motion()
+                motion_task = asyncio.create_task(_drive_close_then_stop())
 
     except asyncio.CancelledError:
         log.info("Lathe gate controller cancelled")
         raise
+
     finally:
-        # Best-effort cleanup; do not crash shutdown if I2C is unhappy.
+        try:
+            await _cancel_motion()
+        except Exception:
+            log.exception("Lathe controller: motion cancel failed")
+
+        try:
+            await _stop_relays()
+        except Exception:
+            log.exception("Lathe controller: failed to stop relays")
+
+        try:
+            relays.close(restore=False)
+        except Exception:
+            log.exception("Lathe controller: failed to close relays")
+
         try:
             leds.close(restore=False)
         except Exception:
