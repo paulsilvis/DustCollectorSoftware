@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+import logging
 
 from ..domain.gate import Gate
 from ..domain.leds import Leds
-from ...src.event_bus import EventBus   # reusing your existing bus events
+from ..system.event_bus import EventBus, DeviceEvent
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -26,13 +29,11 @@ async def run_gate_task(
     """
     Shared controller loop for a single gate.
 
-    Listens for:
-        DeviceOn(name)
-        DeviceOff(name)
+    Listens for DeviceEvent(name=<device>, kind="on"/"off") and drives:
+      - gate.open() / gate.close()
+      - LEDs for on/off state
 
-    And drives:
-        - gate open/close
-        - LED on/off representation
+    This is pure policy: no I2C, no hardware details.
     """
 
     q = bus.subscribe(maxsize=20)
@@ -48,19 +49,29 @@ async def run_gate_task(
     # Initial LED state = OFF
     await set_led_state(False)
 
-    while True:
-        ev = await q.get()
+    try:
+        while True:
+            ev = await q.get()
 
-        # You already use named events, so we reuse them
-        if getattr(ev, "name", None) != cfg.device_name:
-            continue
+            if not isinstance(ev, DeviceEvent):
+                # Ignore unknown event types
+                continue
 
-        # Device turned ON
-        if ev.kind == "on":
-            await gate.open()
-            await set_led_state(True)
+            if ev.name != cfg.device_name:
+                continue
 
-        # Device turned OFF
-        elif ev.kind == "off":
-            await gate.close()
-            await set_led_state(False)
+            if ev.kind == "on":
+                await gate.open()
+                await set_led_state(True)
+
+            elif ev.kind == "off":
+                await gate.close()
+                await set_led_state(False)
+    except asyncio.CancelledError:
+        log.info("Gate task for %s cancelled, shutting down", cfg.device_name)
+        # Optional: de-energize relays, set LEDs to a safe state, etc.
+        try:
+            await gate.stop()
+        except Exception:
+            log.exception("Error while stopping gate %s during cancellation", cfg.device_name)
+        raise

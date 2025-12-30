@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ..domain.gate import Gate
 from ..domain.leds import Leds
-from ...src.event_bus import EventBus
+from ..system.event_bus import EventBus
 from .gate_task_common import GateTaskConfig, run_gate_task
 
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from .typing import IntEnumLike  # optional helper, see below
 from ..hardware.leds_hw import LedBank
 
 
@@ -9,12 +8,13 @@ class Leds:
     Named LED signals on the LED PCF.
 
     This layer knows:
-      - which bit index corresponds to which semantic name
+      - which bit index corresponds to which semantic name.
+
     It does NOT impose relationships like "pairs must be mutually exclusive";
     that is policy for tasks.
     """
 
-    # Bit assignments (adjust to match your wiring)
+    # Bit assignments (adjust to match your wiring if needed)
     SAW_ON = 0
     SAW_OFF = 1
     LATHE_ON = 2

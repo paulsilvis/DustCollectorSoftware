@@ -8,8 +8,7 @@ from .hardware.relays import RelayBank
 from .hardware.leds_hw import LedBank
 from .domain.gate import Gate
 from .domain.leds import Leds
-
-from ..src.event_bus import EventBus
+from .system.event_bus import EventBus, DeviceEvent
 from .tasks.saw_gate_task import run_saw_gate_controller
 from .tasks.lathe_gate_task import run_lathe_gate_controller
 
@@ -17,8 +16,38 @@ from .tasks.lathe_gate_task import run_lathe_gate_controller
 log = logging.getLogger(__name__)
 
 
+async def _demo_publisher(bus: EventBus) -> None:
+    """
+    Temporary demo publisher so we can see gates and LEDs move
+    without the ADC watcher wired up yet.
+    """
+    try:
+        while True:
+            log.info("DEMO: saw ON")
+            await bus.publish(DeviceEvent(name="saw", kind="on"))
+            await asyncio.sleep(5.0)
+
+            log.info("DEMO: saw OFF")
+            await bus.publish(DeviceEvent(name="saw", kind="off"))
+            await asyncio.sleep(5.0)
+
+            log.info("DEMO: lathe ON")
+            await bus.publish(DeviceEvent(name="lathe", kind="on"))
+            await asyncio.sleep(5.0)
+
+            log.info("DEMO: lathe OFF")
+            await bus.publish(DeviceEvent(name="lathe", kind="off"))
+            await asyncio.sleep(5.0)
+    except asyncio.CancelledError:
+        log.info("Demo publisher cancelled, shutting down")
+        raise
+
+
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(asctime)s] %(levelname)s %(name)s: %(message)s",
+    )
 
     # ---------------------------------------------------------
     # Hardware setup
@@ -52,19 +81,42 @@ async def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # EventBus
+    # EventBus + tasks
     # ---------------------------------------------------------
     bus_events = EventBus()
 
     tasks = [
-        asyncio.create_task(run_saw_gate_controller(bus_events, saw_gate, leds)),
-        asyncio.create_task(run_lathe_gate_controller(bus_events, lathe_gate, leds)),
+        asyncio.create_task(
+            run_saw_gate_controller(bus_events, saw_gate, leds),
+            name="saw_gate",
+        ),
+        asyncio.create_task(
+            run_lathe_gate_controller(bus_events, lathe_gate, leds),
+            name="lathe_gate",
+        ),
+        asyncio.create_task(
+            _demo_publisher(bus_events),
+            name="demo_publisher",
+        ),
     ]
 
     log.info("V2 system running...")
 
-    await asyncio.gather(*tasks)
+    try:
+        await asyncio.gather(*tasks)
+    except asyncio.CancelledError:
+        log.info("Main task cancelled, shutting down tasks")
+        # Let tasks clean themselves up; they already see CancelledError.
+        for t in tasks:
+            if not t.done():
+                t.cancel()
+        # Wait a moment for everything to settle
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # Clean, quiet exit on Ctrl-C
+        log.info("Keyboard interrupt, exiting cleanly")
