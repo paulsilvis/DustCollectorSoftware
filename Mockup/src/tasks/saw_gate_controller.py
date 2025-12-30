@@ -12,11 +12,11 @@ log = logging.getLogger(__name__)
 SAW_LED_GREEN_BIT = 6
 SAW_LED_RED_BIT = 2
 
-# Empirically verified:
-# - relay bit 6 energize -> gate OPENS
-# - relay bit 7 energize -> gate CLOSES
-SAW_RELAY_OPEN_BIT = 6
+# Relay bits on PCF @ 0x21
+# Canonical convention (empirically verified):
+# bit 7 = CLOSE, bit 6 = OPEN
 SAW_RELAY_CLOSE_BIT = 7
+SAW_RELAY_OPEN_BIT = 6
 
 RELAY_DEADTIME_S = 0.10
 MAX_DRIVE_S = 6.0
@@ -31,6 +31,8 @@ async def run_saw_gate_controller(
     Saw gate controller:
     - saw.on  -> LED GREEN, drive OPEN for MAX_DRIVE_S then stop
     - saw.off -> LED RED,   drive CLOSE for MAX_DRIVE_S then stop
+
+    relay_lock MUST be shared across all controllers using relays@0x21.
     """
     q = bus.subscribe(maxsize=100)
 
@@ -40,7 +42,7 @@ async def run_saw_gate_controller(
             addr=0x20,
             green_bit=SAW_LED_GREEN_BIT,
             red_bit=SAW_LED_RED_BIT,
-            active_low=True,
+            active_low=False,  # <-- ACTIVE-HIGH LED board
         )
     )
 
@@ -90,6 +92,7 @@ async def run_saw_gate_controller(
         finally:
             motion_task = None
 
+    # Boot state
     leds.set_red()
     await _relay_stop()
     log.info("SAW CTRL: boot -> CLOSED (Saw RED)")
