@@ -78,7 +78,7 @@ async def _run_app(config_path: str) -> None:
     hw_mode = _hw_mode_from_env()
     is_mock = hw_mode == "mock"
 
-    _ = AppConfig.load(config_path)
+    cfg = AppConfig.load(config_path)
     log.info("Boot: hw_mode=%s is_mock=%s config=%s", hw_mode, is_mock, config_path)
 
     # 1) LEDs off before any controller touches 0x20
@@ -138,6 +138,11 @@ async def _run_app(config_path: str) -> None:
     )
     tasks.append(asyncio.create_task(run_adc_watch(adc_cfg, bus), name="adc_watch"))
     log.info("ADC lathe detector enabled (quiet, evented)")
+
+    from .tasks.collector_ssr_controller import run_collector_ssr_controller
+
+    tasks.append(asyncio.create_task(run_collector_ssr_controller(bus, cfg), name="collector_ssr"))
+    log.info("Collector SSR controller enabled (no delay)")
 
     if is_mock:
         log.info("Mock mode: running controllers; hardware may be absent")
