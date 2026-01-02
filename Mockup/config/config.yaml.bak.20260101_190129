@@ -4,8 +4,8 @@ logging:
 hardware:
   # mock | real
   # Default is mock if omitted
-  mode: real
-  outputs_enabled: true
+  mode: mock
+  outputs_enabled: false
 
 i2c:
   bus: 1
