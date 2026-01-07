@@ -41,9 +41,13 @@ debounce:
   off_min_ms: 900
 
 aqm:
-  bad_threshold: 35
-  severe_threshold: 55
   fan_on_when_bad: true
+  interval_s: 0.8
+  bad_threshold: 35
+  severe_threshold: 75
+  flush_in_waiting_threshold: 4096
+  buf_max_bytes: 8192
+
 
 features:
   lcd: true

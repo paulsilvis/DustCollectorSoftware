@@ -1,10 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dustcollector"
+version = "0.1.0"
+description = "Dust collector control software (Mockup)"
+readme = "README.md"
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[project.scripts]
+dustcollector = "src.main:main"
+
+[tool.setuptools]
+packages = ["src", "src.hardware", "src.tasks", "src.util"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
 [tool.black]
 line-length = 79
 target-version = ["py311"]
 
 [tool.flake8]
 max-line-length = 79
-extend-ignore = ["E203","W503"]
+extend-ignore = ["E203", "W503"]
 
 [tool.isort]
 profile = "black"

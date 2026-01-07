@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-import os
+from types import SimpleNamespace
 from typing import Optional
 
 from smbus2 import SMBus
@@ -11,6 +11,7 @@ from smbus2 import SMBus
 from .config_loader import AppConfig
 from .event_bus import EventBus
 from .hardware.pcf_relays import PcfRelays, PcfRelaysConfig
+from .hardware.uart import open_serial
 from .util.logging_setup import setup_logging
 
 log = logging.getLogger(__name__)
@@ -25,13 +26,6 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     return ap.parse_args(argv)
 
 
-def _hw_mode_from_env() -> str:
-    hw_mode = os.environ.get("DUSTCOLLECTOR_HW", "mock").strip().lower()
-    if hw_mode not in ("mock", "real"):
-        raise ValueError("DUSTCOLLECTOR_HW must be 'mock' or 'real'")
-    return hw_mode
-
-
 async def _event_logger(bus: EventBus) -> None:
     q = bus.subscribe(maxsize=100)
     try:
@@ -44,16 +38,6 @@ async def _event_logger(bus: EventBus) -> None:
 
 
 def _leds_all_off_boot() -> None:
-    """
-    Force all LEDs off at startup.
-
-    Your LED bank on PCF8574 @ 0x20 is ACTIVE-HIGH:
-      1 => LED ON
-      0 => LED OFF
-    Therefore OFF = 0x00.
-
-    We write 0x00 then read back to confirm.
-    """
     try:
         bus = SMBus(1)
         try:
@@ -75,37 +59,46 @@ def _leds_all_off_boot() -> None:
 async def _run_app(config_path: str) -> None:
     setup_logging()
 
-    hw_mode = _hw_mode_from_env()
-    is_mock = hw_mode == "mock"
-
     cfg = AppConfig.load(config_path)
-    log.info("Boot: hw_mode=%s is_mock=%s config=%s", hw_mode, is_mock, config_path)
+    log.info("Boot: config=%s", config_path)
 
-    # 1) LEDs off before any controller touches 0x20
     _leds_all_off_boot()
 
     bus = EventBus()
     tasks: list[asyncio.Task[None]] = []
 
-    # 2) Relays on PCF8574 @ 0x21
-    #
-    # Hardware chain: PCF -> ULN2803 (inverts) -> relay board inputs (active-low).
-    # Therefore: PCF bit=1 energizes relay => active_low=False at the PCF layer.
+    # Relays on PCF8574 @ 0x21 (PCF->ULN2803 inverts -> relay inputs active-low)
     relays = PcfRelays(PcfRelaysConfig(bus=1, addr=RELAY_PCF_ADDR, active_low=False))
     relay_lock = asyncio.Lock()
 
-    # Startup safety: force all relays off under the same lock all controllers use.
     try:
         async with relay_lock:
             relays.all_off()
         log.info("Relay init: PCF@0x21 all OFF")
     except Exception:
         log.exception("Relay init: failed to force all-off at boot")
+        raise
 
-    # Event logger
+    # UART shared: RX=PMS1003, TX=ESP32 (ESP32 TX physically unconnected)
+    uart_cfg = cfg.raw["uart"]
+    aqm_port = str(uart_cfg["aqm_port"])
+    baud = int(uart_cfg["baud"])
+    aqm_ser = open_serial(aqm_port, baud)
+    hw_uart = SimpleNamespace(ser=aqm_ser, serial=aqm_ser)
+    log.info("AQM UART open: %s @ %d", aqm_port, baud)
+
+    from .tasks.aqm_reader import aqm_reader
+    from .tasks.aqm_policy import run_aqm_policy
+
+    tasks.append(asyncio.create_task(aqm_reader(bus, cfg, hw_uart), name="aqm_reader"))
+    log.info("AQM reader started")
+
+    tasks.append(asyncio.create_task(run_aqm_policy(bus, cfg, ser_tx=aqm_ser), name="aqm_policy"))
+    log.info("AQM policy started")
+
     tasks.append(asyncio.create_task(_event_logger(bus), name="event_logger"))
 
-    # Controllers (both use relays@0x21)
+    # Gate controllers
     from .tasks.lathe_gate_controller import run_lathe_gate_controller
     from .tasks.saw_gate_controller import run_saw_gate_controller
 
@@ -115,17 +108,15 @@ async def _run_app(config_path: str) -> None:
             name="lathe_gate_ctrl",
         )
     )
-    log.info("Lathe gate controller enabled")
-
     tasks.append(
         asyncio.create_task(
             run_saw_gate_controller(bus, relays, relay_lock),
             name="saw_gate_ctrl",
         )
     )
-    log.info("Saw gate controller enabled")
+    log.info("Gate controllers started")
 
-    # ADC watch (lathe-only per your file)
+    # ADC watch
     from .tasks.adc_watch import AdcWatchConfig, run_adc_watch
 
     adc_cfg = AdcWatchConfig(
@@ -137,15 +128,18 @@ async def _run_app(config_path: str) -> None:
         consecutive_required=3,
     )
     tasks.append(asyncio.create_task(run_adc_watch(adc_cfg, bus), name="adc_watch"))
-    log.info("ADC lathe detector enabled (quiet, evented)")
+    log.info("ADC watch started")
 
+    # Collector SSR controller
     from .tasks.collector_ssr_controller import run_collector_ssr_controller
 
-    tasks.append(asyncio.create_task(run_collector_ssr_controller(bus, cfg), name="collector_ssr"))
-    log.info("Collector SSR controller enabled (no delay)")
-
-    if is_mock:
-        log.info("Mock mode: running controllers; hardware may be absent")
+    tasks.append(
+        asyncio.create_task(
+            run_collector_ssr_controller(bus, cfg),
+            name="collector_ssr",
+        )
+    )
+    log.info("Collector SSR controller started")
 
     try:
         while True:
@@ -154,12 +148,8 @@ async def _run_app(config_path: str) -> None:
         log.info("Shutdown: cancelling tasks")
         for t in tasks:
             t.cancel()
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for name, res in zip([t.get_name() for t in tasks], results):
-            if isinstance(res, Exception) and not isinstance(res, asyncio.CancelledError):
-                log.error("Task %s exited with error: %r", name, res)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Shutdown safety: force all relays OFF under lock
         try:
             async with relay_lock:
                 relays.all_off()
@@ -170,6 +160,11 @@ async def _run_app(config_path: str) -> None:
             relays.close(restore=False)
         except Exception:
             log.exception("Shutdown: failed to close relay bus")
+
+        try:
+            aqm_ser.close()
+        except Exception:
+            log.exception("Shutdown: failed to close AQM serial")
 
         log.info("Shutdown complete")
 
