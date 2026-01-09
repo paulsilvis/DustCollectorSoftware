@@ -84,6 +84,7 @@ async def _run_app(config_path: str) -> None:
     # Local imports keep startup ordering explicit
     from .tasks.aqm_reader import aqm_reader
     from .tasks.aqm_policy import run_aqm_policy
+    from .tasks.aqm_announcer import run_aqm_announcer
     from .tasks.lathe_gate_controller import run_lathe_gate_controller
     from .tasks.saw_gate_controller import run_saw_gate_controller
     from .tasks.adc_watch import AdcWatchConfig, run_adc_watch
@@ -103,7 +104,8 @@ async def _run_app(config_path: str) -> None:
 
         tg.create_task(aqm_reader(bus, cfg, hw_uart), name="aqm_reader")
         tg.create_task(run_aqm_policy(bus, cfg, ser_tx=aqm_ser), name="aqm_policy")
-
+        tg.create_task(run_aqm_announcer(bus, cfg), name="aqm_announcer")
+     
         tg.create_task(
             run_lathe_gate_controller(bus, relays, relay_lock),
             name="lathe_gate_ctrl",

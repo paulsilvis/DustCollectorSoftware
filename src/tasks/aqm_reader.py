@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, Optional
+from collections import deque
+from typing import Any, Deque, Optional
 
 from ..events import Event
 from ..event_bus import EventBus
@@ -87,8 +88,7 @@ def _find_frame_blocking(ser: Any) -> Optional[bytes]:
         if _checksum_ok(frame):
             return frame
 
-        # Checksum failed; resync by continuing scan
-        # (same behavior as your demo script, but without printing every time).
+        # Checksum failed; resync by continuing scan.
         continue
 
 
@@ -119,6 +119,14 @@ def _clamp_bad_off_threshold(bad_off_th: int, bad_on_th: int) -> int:
     if bad_off_th >= bad_on_th:
         return bad_on_th - 1
     return bad_off_th
+
+
+def _avg_last(hist: Deque[int], n: int) -> int:
+    if n <= 1 or len(hist) <= 1:
+        return int(hist[-1])
+    k = min(n, len(hist))
+    tail = list(hist)[-k:]
+    return int(round(sum(tail) / k))
 
 
 class _Oled:
@@ -212,16 +220,19 @@ async def aqm_reader(bus: EventBus, cfg: Any, hw: Any) -> None:
     executed in a thread (asyncio.to_thread) so we don't block the event loop.
 
     Publishes:
-      - aqm.metrics {pm1_0, pm2_5, pm10}
+      - aqm.metrics {pm1_0, pm2_5, pm10, ...}
       - aqm.good / aqm.bad {pm2_5, severe}
 
     OLED:
       - updates every valid frame (status + three readings)
+
+    Adaptive filtering:
+      - filter_window_good is used when air is GOOD
+      - filter_window_bad is used when air is BAD (typically larger, to suppress
+        fan-induced turbulence fluctuations)
     """
     ser = _get_serial(hw)
 
-    # Make the serial reads behave like the demo:
-    # blocking with a timeout so the scanner can keep syncing.
     try:
         ser.timeout = float(_cfg_get(cfg, ["aqm", "serial_timeout_s"], 2.0))
     except Exception:
@@ -234,65 +245,123 @@ async def aqm_reader(bus: EventBus, cfg: Any, hw: Any) -> None:
             pass
 
     interval_s = float(_cfg_get(cfg, ["aqm", "interval_s"], 0.8))
+    show_values = bool(_cfg_get(cfg, ["aqm", "show_values"], False))
+
+    win_good = int(_cfg_get(cfg, ["aqm", "filter_window_good"], 5))
+    if win_good < 1:
+        win_good = 1
+
+    bad_mult = float(_cfg_get(cfg, ["aqm", "filter_window_bad_mult"], 5.0))
+    if bad_mult < 1.0:
+        bad_mult = 1.0
+
+    win_bad_cfg = int(_cfg_get(cfg, ["aqm", "filter_window_bad"], 0))
+    if win_bad_cfg >= 1:
+        win_bad = win_bad_cfg
+    else:
+        win_bad = int(round(win_good * bad_mult))
+        if win_bad < 1:
+            win_bad = 1
+
+    max_win = max(win_good, win_bad)
+
+    pm1_hist: Deque[int] = deque(maxlen=max_win)
+    pm25_hist: Deque[int] = deque(maxlen=max_win)
+    pm10_hist: Deque[int] = deque(maxlen=max_win)
 
     bad_on_th = int(_cfg_get(cfg, ["aqm", "bad_threshold"], 35))
     sev_th = int(_cfg_get(cfg, ["aqm", "severe_threshold"], 75))
 
     bad_hyst = int(_cfg_get(cfg, ["aqm", "bad_hysteresis"], 5))
-    bad_off_th = int(
-        _cfg_get(cfg, ["aqm", "bad_off_threshold"], bad_on_th - bad_hyst)
-    )
+    bad_off_th = int(_cfg_get(cfg, ["aqm", "bad_off_threshold"], bad_on_th - bad_hyst))
     bad_off_th = _clamp_bad_off_threshold(bad_off_th, bad_on_th)
 
-    # Match your demo script by default: CF=1 values (bytes 4..9).
     use_cf1 = bool(_cfg_get(cfg, ["aqm", "use_cf1"], True))
 
     is_bad = False
+    last_is_bad: Optional[bool] = None
     oled = _Oled()
 
     last_pm25: Optional[int] = None
     last_pub_t = time.monotonic()
 
     log.info(
-        "AQM reader running (interval_s=%.3f bad_on=%d bad_off=%d severe=%d use_cf1=%s) [RX-only]",
+        "AQM reader running (interval_s=%.3f bad_on=%d bad_off=%d severe=%d "
+        "use_cf1=%s win_good=%d win_bad=%d max_win=%d show_values=%s) [RX-only]",
         interval_s,
         bad_on_th,
         bad_off_th,
         sev_th,
         use_cf1,
+        win_good,
+        win_bad,
+        max_win,
+        show_values,
     )
 
     while True:
-        # Get the next valid frame using the robust scanner in a thread.
         frame = await asyncio.to_thread(_find_frame_blocking, ser)
         if frame is None:
-            # Timeout: nothing read; keep OLED in WAITING and loop.
             oled.show_waiting()
             await asyncio.sleep(0.1)
             continue
 
-        metrics = _parse_metrics(frame, use_cf1=use_cf1)
-        pm1_0 = int(metrics["pm1_0"])
-        pm25 = int(metrics["pm2_5"])
-        pm10 = int(metrics["pm10"])
+        metrics_raw = _parse_metrics(frame, use_cf1=use_cf1)
+        pm1_0_raw = int(metrics_raw["pm1_0"])
+        pm25_raw = int(metrics_raw["pm2_5"])
+        pm10_raw = int(metrics_raw["pm10"])
+
+        pm1_hist.append(pm1_0_raw)
+        pm25_hist.append(pm25_raw)
+        pm10_hist.append(pm10_raw)
+
+        # Use heavier filtering when we are currently BAD.
+        win_cur = win_bad if is_bad else win_good
+
+        pm1_0 = _avg_last(pm1_hist, win_cur)
+        pm25 = _avg_last(pm25_hist, win_cur)
+        pm10 = _avg_last(pm10_hist, win_cur)
 
         now_t = time.monotonic()
         dt = now_t - last_pub_t
         last_pub_t = now_t
+
         changed = (last_pm25 is None) or (pm25 != last_pm25)
         last_pm25 = pm25
-        log.warning(
-            "AQM: sample dt=%.2fs pm2_5=%d %s pm1_0=%d pm10=%d",
-            dt,
-            pm25,
-            "CHANGED" if changed else "same",
-            pm1_0,
-            pm10,
+
+        if show_values:
+            log.warning(
+                "AQM: dt=%.2fs pm2_5=%d(raw=%d) %s pm1_0=%d(raw=%d) pm10=%d(raw=%d) "
+                "win=%d mode=%s",
+                dt,
+                pm25,
+                pm25_raw,
+                "CHANGED" if changed else "same",
+                pm1_0,
+                pm1_0_raw,
+                pm10,
+                pm10_raw,
+                win_cur,
+                "BAD" if is_bad else "GOOD",
+            )
+
+        await bus.publish(
+            Event.now(
+                "aqm.metrics",
+                "aqm.pms1003",
+                pm1_0=pm1_0,
+                pm2_5=pm25,
+                pm10=pm10,
+                pm1_0_raw=pm1_0_raw,
+                pm2_5_raw=pm25_raw,
+                pm10_raw=pm10_raw,
+                filter_window=win_cur,
+                filter_window_good=win_good,
+                filter_window_bad=win_bad,
+            )
         )
 
-        await bus.publish(Event.now("aqm.metrics", "aqm.pms1003", **metrics))
-
-        # Hysteresis:
+        # Hysteresis on FILTERED pm2.5
         if is_bad:
             if pm25 <= bad_off_th:
                 is_bad = False
@@ -301,17 +370,20 @@ async def aqm_reader(bus: EventBus, cfg: Any, hw: Any) -> None:
                 is_bad = True
 
         severe = pm25 >= sev_th
-        await bus.publish(
-            Event.now(
-                "aqm.bad" if is_bad else "aqm.good",
-                "aqm.pms1003",
-                pm2_5=pm25,
-                severe=severe,
+
+        if last_is_bad is None or is_bad != last_is_bad:
+            await bus.publish(
+                Event.now(
+                    "aqm.bad" if is_bad else "aqm.good",
+                    "aqm.pms1003",
+                    pm2_5=pm25,
+                    pm2_5_raw=pm25_raw,
+                    severe=severe,
+                )
             )
-        )
+            last_is_bad = is_bad
 
         status = "SEVERE" if severe else ("BAD" if is_bad else "GOOD")
         oled.show(status=status, pm1_0=pm1_0, pm2_5=pm25, pm10=pm10)
 
-        # Keep your existing cadence (even though frames pace us already).
         await asyncio.sleep(interval_s)

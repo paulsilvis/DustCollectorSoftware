@@ -41,12 +41,19 @@ debounce:
   off_min_ms: 900
 
 aqm:
+  show_values: false # true        # only if you want the per-sample log lines
   fan_on_when_bad: true
   interval_s: 0.8
   bad_threshold: 35
   severe_threshold: 75
   flush_in_waiting_threshold: 4096
   buf_max_bytes: 8192
+  good_hold_s: 120
+  min_on_s: 45
+  filter_window_good: 5
+  filter_window_bad_mult: 5
+  # OR explicitly:
+  # filter_window_bad: 25
 
 
 features:
@@ -75,3 +82,14 @@ mock_sim:
   pm25_base: 8
   pm25_bump: 45
   pm25_bump_s: 8
+
+announce:
+  enabled: true
+  min_seconds_between: 60
+  engine: espeak-ng
+  voice: en-us
+  volume: 200
+  speed_wpm: 155
+  unsafe_text: 'Warning!!  Warning!! Warning!! Air quality is no longer safe, and the filter has been activated'
+  safe_text: 'All clear! All clear! All clear!  The air quality is now considered safe. And Paul is a good boy.'
+
