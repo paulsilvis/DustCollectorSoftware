@@ -1,0 +1,37 @@
+[Unit]
+Description=DustCollector controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Run as your normal user (change if needed)
+User=paul
+Group=paul
+
+# Adjust this to wherever the repo/package lives on the Pi
+WorkingDirectory=/home/paul/DustCollectorSoftware
+
+# If you use a venv, point ExecStart to it; if installed system-wide, use "dustcollector" directly.
+# Pick ONE of these ExecStart lines and delete the other.
+
+# (A) VENV-based:
+ExecStart=/home/paul/DustCollectorSoftware/.venv/bin/python -m dustcollector.main --config /home/paul/DustCollectorSoftware/config/config.yaml
+
+# (B) Package/console-script based:
+# ExecStart=/usr/local/bin/dustcollector --config /home/paul/DustCollectorSoftware/config/config.yaml
+
+Restart=on-failure
+RestartSec=2
+
+# Make logs go to journald (viewable with journalctl)
+StandardOutput=journal
+StandardError=journal
+
+# Nice shutdown behavior
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
