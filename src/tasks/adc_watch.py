@@ -4,8 +4,8 @@ import asyncio
 import logging
 from dataclasses import dataclass
 
-from ..events import Event
 from ..event_bus import EventBus
+from ..events import Event
 
 log = logging.getLogger(__name__)
 
@@ -15,9 +15,9 @@ class AdcWatchConfig:
     i2c_address: int = 0x48
     sample_hz: float = 10.0
 
-    # Channels
-    saw_channel: int = 0  # A0
-    lathe_channel: int = 1  # A1
+    # Channels (single-ended): 0..3 => A0..A3
+    saw_channel: int = 0
+    lathe_channel: int = 1
 
     # Thresholds (VOLTS at ADC input)
     saw_on_threshold: float = 1.00
@@ -27,6 +27,18 @@ class AdcWatchConfig:
 
     # Stability against noise
     consecutive_required: int = 3
+
+
+def _pin_for_channel(ads1x15_mod, ch: int):
+    pin_map = {
+        0: ads1x15_mod.Pin.A0,
+        1: ads1x15_mod.Pin.A1,
+        2: ads1x15_mod.Pin.A2,
+        3: ads1x15_mod.Pin.A3,
+    }
+    if ch not in pin_map:
+        raise ValueError(f"channel must be 0..3 (got {ch})")
+    return pin_map[ch]
 
 
 async def _watch_one(
@@ -73,14 +85,22 @@ async def _watch_one(
 
 async def run_adc_watch(cfg: AdcWatchConfig, bus: EventBus) -> None:
     """
-    Quiet ADS1115 detector with hysteresis for:
-    - Saw  (A0): publishes saw.on / saw.off as src=adc.a0
-    - Lathe(A1): publishes lathe.on / lathe.off as src=adc.a1
+    ADS1115 detector with hysteresis for:
+      - Saw  (A0): publishes saw.on / saw.off as src=adc.a0
+      - Lathe(A1): publishes lathe.on / lathe.off as src=adc.a1
     """
-    import board  # type: ignore
-    import busio  # type: ignore
-    import adafruit_ads1x15.ads1115 as ADS  # type: ignore
-    from adafruit_ads1x15.analog_in import AnalogIn  # type: ignore
+
+    # Hard dependency check: fail fast, fail loud
+    try:
+        import board  # type: ignore
+        import busio  # type: ignore
+        import adafruit_ads1x15.ads1115 as ADS  # type: ignore
+        from adafruit_ads1x15 import ads1x15  # type: ignore
+        from adafruit_ads1x15.analog_in import AnalogIn  # type: ignore
+    except Exception as e:
+        raise RuntimeError(
+            "ADC watcher cannot start: ADS1115 stack not installed"
+        ) from e
 
     if cfg.sample_hz <= 0:
         raise ValueError("sample_hz must be > 0")
@@ -108,41 +128,40 @@ async def run_adc_watch(cfg: AdcWatchConfig, bus: EventBus) -> None:
     i2c = busio.I2C(board.SCL, board.SDA)
     ads = ADS.ADS1115(i2c, address=cfg.i2c_address)
 
-    saw = AnalogIn(ads, ADS.P0)
-    lathe = AnalogIn(ads, ADS.P1)
+    saw_pin = _pin_for_channel(ads1x15, cfg.saw_channel)
+    lathe_pin = _pin_for_channel(ads1x15, cfg.lathe_channel)
 
-    t_saw = asyncio.create_task(
-        _watch_one(
-            bus=bus,
-            period=period,
-            analog_in=saw,
-            tool="saw",
-            src="adc.a0",
-            on_threshold=cfg.saw_on_threshold,
-            off_threshold=cfg.saw_off_threshold,
-            consecutive_required=cfg.consecutive_required,
-        ),
-        name="adc_watch_saw",
-    )
-    t_lathe = asyncio.create_task(
-        _watch_one(
-            bus=bus,
-            period=period,
-            analog_in=lathe,
-            tool="lathe",
-            src="adc.a1",
-            on_threshold=cfg.lathe_on_threshold,
-            off_threshold=cfg.lathe_off_threshold,
-            consecutive_required=cfg.consecutive_required,
-        ),
-        name="adc_watch_lathe",
-    )
+    saw = AnalogIn(ads, saw_pin)
+    lathe = AnalogIn(ads, lathe_pin)
 
     try:
-        await asyncio.gather(t_saw, t_lathe)
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(
+                _watch_one(
+                    bus=bus,
+                    period=period,
+                    analog_in=saw,
+                    tool="saw",
+                    src="adc.a0",
+                    on_threshold=cfg.saw_on_threshold,
+                    off_threshold=cfg.saw_off_threshold,
+                    consecutive_required=cfg.consecutive_required,
+                ),
+                name="adc_watch_saw",
+            )
+            tg.create_task(
+                _watch_one(
+                    bus=bus,
+                    period=period,
+                    analog_in=lathe,
+                    tool="lathe",
+                    src="adc.a1",
+                    on_threshold=cfg.lathe_on_threshold,
+                    off_threshold=cfg.lathe_off_threshold,
+                    consecutive_required=cfg.consecutive_required,
+                ),
+                name="adc_watch_lathe",
+            )
     except asyncio.CancelledError:
         log.info("ADC watch cancelled")
-        t_saw.cancel()
-        t_lathe.cancel()
-        await asyncio.gather(t_saw, t_lathe, return_exceptions=True)
         raise

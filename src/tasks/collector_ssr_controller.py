@@ -16,6 +16,7 @@ except Exception:  # pragma: no cover
 
 log = logging.getLogger(__name__)
 
+LED_CTRL_PIN = 5  # BCM pin for LED strip control (active-high)
 
 @dataclass(frozen=True)
 class CollectorSsrConfig:
@@ -85,12 +86,23 @@ async def run_collector_ssr_controller(bus: EventBus, app_cfg: AppConfig) -> Non
                 await asyncio.sleep(0)
         except asyncio.CancelledError:
             raise
-
+    
     if GPIOOut is None:
         raise RuntimeError("RPi.GPIO not available but hardware.mode is real and outputs_enabled is true")
+    # early exit here if in mock mode
 
+    led_strip_control = GPIOOut(LED_CTRL_PIN, active_high=True)
     ssr = GPIOOut(cfg.pin_bcm, active_high=cfg.active_high)
-    ssr.off()
+
+    def blower_on() -> None:
+        led_strip_control.on()
+        ssr.on()
+
+    def blower_off() -> None:
+        led_strip_control.off()
+        ssr.off()
+ 
+    blower_off()
     ssr_on = False
     log.info(
         "Collector SSR controller ready (pin=%s active_high=%s tools=%s) [OFF]",
@@ -124,11 +136,11 @@ async def run_collector_ssr_controller(bus: EventBus, app_cfg: AppConfig) -> Non
 
             want_on = bool(active)
             if want_on and not ssr_on:
-                ssr.on()
+                blower_on()
                 ssr_on = True
                 log.info("Collector ON (active=%s)", sorted(active))
             elif (not want_on) and ssr_on:
-                ssr.off()
+                blower_off()
                 ssr_on = False
                 log.info("Collector OFF")
 
@@ -136,7 +148,7 @@ async def run_collector_ssr_controller(bus: EventBus, app_cfg: AppConfig) -> Non
     except asyncio.CancelledError:
         log.info("Collector SSR controller cancelled; forcing OFF")
         try:
-            ssr.off()
+            blower_off()
         except Exception:
             log.exception("Collector SSR: failed to force OFF on shutdown")
         raise
