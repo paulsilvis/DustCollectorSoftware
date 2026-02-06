@@ -1,0 +1,19 @@
+[Unit]
+Description=ISS Live Feed from Sen YouTube Channel
+After=network-online.target graphical.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=paul
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/paul/.Xauthority
+ExecStartPre=/bin/sleep 15
+ExecStart=/usr/local/bin/iss-stream.sh
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical.target
