@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dust Collector System Diagrams</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .diagram-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .diagram-card {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .diagram-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+        }
+        
+        .diagram-card.featured {
+            grid-column: 1 / -1;
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+        }
+        
+        .card-header h2 {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+        
+        .card-header p {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+        
+        .card-body {
+            padding: 20px;
+        }
+        
+        .diagram-img {
+            width: 100%;
+            height: auto;
+            display: block;
+            cursor: zoom-in;
+            border-radius: 5px;
+        }
+        
+        .tags {
+            margin-top: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .tag {
+            background: #e0e7ff;
+            color: #4c51bf;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            cursor: zoom-out;
+        }
+        
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal img {
+            max-width: 95%;
+            max-height: 95%;
+            object-fit: contain;
+        }
+        
+        footer {
+            text-align: center;
+            color: white;
+            padding: 20px;
+            margin-top: 40px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+        
+        .download-links {
+            margin-top: 10px;
+        }
+        
+        .download-links a {
+            color: white;
+            text-decoration: none;
+            margin: 0 10px;
+            padding: 8px 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        
+        .download-links a:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔧 Dust Collector Control System</h1>
+            <p class="subtitle">Event-Driven Architecture Visualization</p>
+        </header>
+        
+        <div class="diagram-grid">
+            <!-- Featured Diagram -->
+            <div class="diagram-card featured">
+                <div class="card-header">
+                    <h2>System Architecture (Enhanced)</h2>
+                    <p>Complete system overview with event bus, hardware layer, and control tasks</p>
+                </div>
+                <div class="card-body">
+                    <img src="system_diagram_enhanced.svg" alt="System Architecture" class="diagram-img" onclick="openModal(this.src)">
+                    <div class="tags">
+                        <span class="tag">Architecture</span>
+                        <span class="tag">Event Bus</span>
+                        <span class="tag">Hardware</span>
+                        <span class="tag">Main Diagram</span>
+                    </div>
+                    <div class="download-links">
+                        <a href="system_diagram_enhanced.svg" download>Download SVG</a>
+                        <a href="system_diagram_enhanced.png" download>Download PNG</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Data Flow -->
+            <div class="diagram-card">
+                <div class="card-header">
+                    <h2>Data Flow</h2>
+                    <p>Tool detection to fan control pipeline</p>
+                </div>
+                <div class="card-body">
+                    <img src="dataflow_diagram.svg" alt="Data Flow" class="diagram-img" onclick="openModal(this.src)">
+                    <div class="tags">
+                        <span class="tag">Data Flow</span>
+                        <span class="tag">Signal Processing</span>
+                        <span class="tag">Sensors</span>
+                    </div>
+                    <div class="download-links">
+                        <a href="dataflow_diagram.svg" download>SVG</a>
+                        <a href="dataflow_diagram.png" download>PNG</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- State Machine -->
+            <div class="diagram-card">
+                <div class="card-header">
+                    <h2>Gate State Machine</h2>
+                    <p>Blast gate control logic and transitions</p>
+                </div>
+                <div class="card-body">
+                    <img src="state_machine.svg" alt="State Machine" class="diagram-img" onclick="openModal(this.src)">
+                    <div class="tags">
+                        <span class="tag">State Machine</span>
+                        <span class="tag">Gate Control</span>
+                        <span class="tag">Logic</span>
+                    </div>
+                    <div class="download-links">
+                        <a href="state_machine.svg" download>SVG</a>
+                        <a href="state_machine.png" download>PNG</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Event Flow -->
+            <div class="diagram-card">
+                <div class="card-header">
+                    <h2>Event Flow</h2>
+                    <p>Message publish/subscribe relationships</p>
+                </div>
+                <div class="card-body">
+                    <img src="event_flow.svg" alt="Event Flow" class="diagram-img" onclick="openModal(this.src)">
+                    <div class="tags">
+                        <span class="tag">Events</span>
+                        <span class="tag">Pub/Sub</span>
+                        <span class="tag">Auto-Generated</span>
+                    </div>
+                    <div class="download-links">
+                        <a href="event_flow.svg" download>SVG</a>
+                        <a href="event_flow.png" download>PNG</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Component Architecture -->
+            <div class="diagram-card">
+                <div class="card-header">
+                    <h2>Component Architecture</h2>
+                    <p>Layered system view with dependencies</p>
+                </div>
+                <div class="card-body">
+                    <img src="component_architecture.svg" alt="Component Architecture" class="diagram-img" onclick="openModal(this.src)">
+                    <div class="tags">
+                        <span class="tag">Components</span>
+                        <span class="tag">Layers</span>
+                        <span class="tag">Auto-Generated</span>
+                    </div>
+                    <div class="download-links">
+                        <a href="component_architecture.svg" download>SVG</a>
+                        <a href="component_architecture.png" download>PNG</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Module Dependencies -->
+            <div class="diagram-card">
+                <div class="card-header">
+                    <h2>Module Dependencies</h2>
+                    <p>Python module import graph</p>
+                </div>
+                <div class="card-body">
+                    <img src="module_dependencies.svg" alt="Module Dependencies" class="diagram-img" onclick="openModal(this.src)">
+                    <div class="tags">
+                        <span class="tag">Modules</span>
+                        <span class="tag">Dependencies</span>
+                        <span class="tag">Code Structure</span>
+                    </div>
+                    <div class="download-links">
+                        <a href="module_dependencies.svg" download>SVG</a>
+                        <a href="module_dependencies.png" download>PNG</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Generated from source code using Python AST analysis and Graphviz</p>
+            <p style="margin-top: 10px; opacity: 0.8;">
+                Click any diagram to zoom • Download SVG for infinite zoom • See DIAGRAMS_README.md for details
+            </p>
+        </footer>
+    </div>
+    
+    <!-- Modal for zoomed images -->
+    <div class="modal" id="modal" onclick="closeModal()">
+        <img src="" alt="Zoomed diagram" id="modal-img">
+    </div>
+    
+    <script>
+        function openModal(src) {
+            const modal = document.getElementById('modal');
+            const modalImg = document.getElementById('modal-img');
+            modal.classList.add('active');
+            modalImg.src = src;
+        }
+        
+        function closeModal() {
+            const modal = document.getElementById('modal');
+            modal.classList.remove('active');
+        }
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

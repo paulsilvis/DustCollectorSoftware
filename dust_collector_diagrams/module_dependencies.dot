@@ -1,0 +1,112 @@
+digraph ModuleDependencies {
+  rankdir=TB;
+  node [shape=box, style="rounded,filled"];
+  ranksep=0.5;
+  nodesep=0.3;
+  
+  // Core modules at top
+  {
+    rank=same;
+    main [label="main", fillcolor="#FF6B6B", fontcolor=white];
+    config_loader [label="config_loader", fillcolor="#FFA726"];
+    event_bus [label="event_bus", fillcolor="#FFA726"];
+    events [label="events", fillcolor="#FFA726"];
+  }
+  
+  // Hardware abstraction layer
+  subgraph cluster_hw {
+    label="Hardware Layer";
+    style=filled;
+    fillcolor="#E3F2FD";
+    
+    {
+      rank=same;
+      hw [label="hw (interface)", fillcolor="#90CAF9"];
+      mock_hw [label="mock_hw", fillcolor="#90CAF9"];
+    }
+    
+    {
+      rank=same;
+      i2c_bus [label="i2c_bus", fillcolor="#64B5F6"];
+      uart [label="uart", fillcolor="#64B5F6"];
+      gpio [label="gpio", fillcolor="#64B5F6"];
+    }
+    
+    {
+      rank=same;
+      ads1115 [label="ads1115", fillcolor="#42A5F5"];
+      pcf8574 [label="pcf8574", fillcolor="#42A5F5"];
+      pms1003 [label="pms1003", fillcolor="#42A5F5"];
+    }
+    
+    {
+      rank=same;
+      pcf_leds [label="pcf_leds", fillcolor="#42A5F5"];
+      pcf_relays [label="pcf_relays", fillcolor="#42A5F5"];
+      relays [label="relays", fillcolor="#42A5F5"];
+    }
+  }
+  
+  // Task layer - organized by function
+  subgraph cluster_tasks {
+    label="Task Layer";
+    style=filled;
+    fillcolor="#FFF3E0";
+    
+    // Sensors
+    {
+      rank=same;
+      adc_watch [label="adc_watch", fillcolor="#FFB74D"];
+      aqm_reader [label="aqm_reader", fillcolor="#FFB74D"];
+    }
+    
+    // Controllers
+    {
+      rank=same;
+      saw_gate_ctrl [label="saw_gate_controller", fillcolor="#81C784"];
+      lathe_gate_ctrl [label="lathe_gate_controller", fillcolor="#81C784"];
+      collector_ssr [label="collector_ssr_controller", fillcolor="#81C784"];
+    }
+    
+    // AQM Management
+    {
+      rank=same;
+      aqm_policy [label="aqm_policy", fillcolor="#AED581"];
+      aqm_announcer [label="aqm_announcer", fillcolor="#AED581"];
+    }
+  }
+  
+  // Key Dependencies
+  main -> event_bus [penwidth=2];
+  main -> config_loader [penwidth=2];
+  
+  event_bus -> events;
+  
+  // Tasks use event bus
+  adc_watch -> event_bus;
+  aqm_reader -> event_bus;
+  saw_gate_ctrl -> event_bus;
+  lathe_gate_ctrl -> event_bus;
+  collector_ssr -> event_bus;
+  aqm_policy -> event_bus;
+  aqm_announcer -> event_bus;
+  
+  // Sensors use hardware
+  adc_watch -> ads1115;
+  aqm_reader -> pms1003;
+  aqm_reader -> uart;
+  
+  // Controllers use hardware
+  saw_gate_ctrl -> pcf_relays;
+  saw_gate_ctrl -> pcf_leds;
+  lathe_gate_ctrl -> pcf_relays;
+  lathe_gate_ctrl -> pcf_leds;
+  collector_ssr -> gpio;
+  
+  // Hardware dependencies
+  ads1115 -> i2c_bus;
+  pcf8574 -> i2c_bus;
+  pcf_leds -> pcf8574;
+  pcf_relays -> pcf8574;
+  pms1003 -> uart;
+}

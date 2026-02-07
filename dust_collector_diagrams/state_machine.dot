@@ -1,0 +1,46 @@
+digraph GateStateMachine {
+  rankdir=LR;
+  bgcolor="#f5f5f5";
+  fontname="Arial";
+  
+  node [fontname="Arial", fontsize=11, style=filled, shape=circle];
+  edge [fontname="Arial", fontsize=9];
+  
+  labelloc=t;
+  label=<<B><FONT POINT-SIZE="16">Blast Gate State Machine</FONT></B>>;
+  
+  // States
+  closed [label=<<B>CLOSED</B><BR/><FONT POINT-SIZE="9">LED: RED<BR/>Relay: OFF</FONT>>, 
+          fillcolor="#EF5350", fontcolor=white, penwidth=3];
+  
+  opening [label=<<B>OPENING</B><BR/><FONT POINT-SIZE="9">Relay: OPEN<BR/>Timer: 6s</FONT>>, 
+           fillcolor="#FFA726", fontcolor=white];
+  
+  open [label=<<B>OPEN</B><BR/><FONT POINT-SIZE="9">LED: GREEN<BR/>Relay: OFF</FONT>>, 
+        fillcolor="#66BB6A", fontcolor=white, penwidth=3];
+  
+  closing [label=<<B>CLOSING</B><BR/><FONT POINT-SIZE="9">Relay: CLOSE<BR/>Timer: 6s</FONT>>, 
+           fillcolor="#FFA726", fontcolor=white];
+  
+  // State transitions
+  closed -> opening [label=<<I>tool.on</I>>, penwidth=2, color="#4CAF50"];
+  opening -> open [label="timer expired", penwidth=2];
+  
+  open -> closing [label=<<I>tool.off</I>>, penwidth=2, color="#F44336"];
+  closing -> closed [label="timer expired", penwidth=2];
+  
+  // Cancel transitions
+  opening -> closing [label=<<I>tool.off</I><BR/>(cancel)>, style=dashed, color=red];
+  closing -> opening [label=<<I>tool.on</I><BR/>(cancel)>, style=dashed, color=green];
+  
+  // Initial state
+  start [shape=point, width=0.3, fillcolor=black];
+  start -> closed [penwidth=2];
+  
+  // Notes
+  note [shape=note, label=<<B>Notes:</B><BR ALIGN="LEFT"/>
+• 0.1s deadtime between relay transitions<BR ALIGN="LEFT"/>
+• Max 6s drive time prevents overheating<BR ALIGN="LEFT"/>
+• Relay lock prevents conflicts<BR ALIGN="LEFT"/>>, 
+        fillcolor="#FFFDE7", style=filled];
+}
