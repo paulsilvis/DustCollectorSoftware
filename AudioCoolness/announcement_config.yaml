@@ -1,0 +1,451 @@
+# ElevenLabs Audio Announcement Configuration
+# This file defines all messages and voice settings for your dust collector announcements
+
+# =============================================================================
+# UNSAFE AIR MESSAGES (20 variations)
+# =============================================================================
+unsafe_messages:
+  - "Warning! Unsafe particulate matter detected. Air filtration system activated."
+  - "Attention! Air quality has dropped below safe levels. Filter engaged."
+  - "Alert! Hazardous dust levels detected. Filtration in progress."
+  - "Caution! Breathing hazard present. Air scrubber running."
+  - "Critical! Airborne particles exceed safe limits. Stand clear."
+  - "Danger! Toxic dust concentration detected. Emergency filtration activated."
+  - "Advisory! Workshop air quality compromised. Ventilation system engaged."
+  - "Notice! Particulate matter levels unsafe. Air purification in progress."
+  - "Warning! Respiratory hazard detected. Do not remove dust masks."
+  - "Alert! Microscopic particles detected above threshold. Filter running at maximum."
+  - "Heads up! The air's gotten sketchy. Filter's doing its thing."
+  - "Yo! Air quality tanked. Scrubber's on it, boss."
+  - "Attention! Environmental hazard present. Breathe carefully until further notice."
+  - "Warning! The shop air has become contaminated. Air cleaning system operational."
+  - "Alert! Dust storm detected. Filtration protocol initiated."
+  - "Caution! Invisible particles everywhere. Don't breathe deep till I say so."
+  - "Emergency! Air quality failure. All personnel maintain respiratory protection."
+  - "Warning! Particulate saturation detected. Maximum filtration engaged."
+  - "Attention! Workshop atmosphere compromised. Air treatment underway."
+  - "Advisory! Airborne contaminants present. Filtration system at full capacity."
+
+# =============================================================================
+# SAFE AIR MESSAGES (20 variations)
+# =============================================================================
+safe_messages:
+  - "All clear. Air quality restored to safe levels."
+  - "Air quality is now within safe parameters."
+  - "Filtration complete. Breathe easy."
+  - "Safe air confirmed. You may resume normal operations."
+  - "Environment secured. Air quality good."
+  - "The coast is clear. Air is clean and safe."
+  - "Good news! Air quality back to normal. Carry on."
+  - "Air purification successful. Safe breathing conditions restored."
+  - "All systems green. Air quality optimal."
+  - "Relax! The air's good again. You're all set."
+  - "We're good to go. Air quality A-OK."
+  - "Breathe free, boss. Air's clean as a whistle."
+  - "Mission accomplished. Air quality within acceptable range."
+  - "Status update: Air quality normalized. Safe to continue work."
+  - "Everything's fine now. Air is perfectly safe."
+  - "Hazard cleared. Workshop air quality restored."
+  - "Air treatment complete. Safe breathing environment confirmed."
+  - "Good to go! Air quality monitoring shows all clear."
+  - "Atmosphere stabilized. You can breathe normally again."
+  - "Air quality check: Passed. Safe conditions confirmed."
+
+# =============================================================================
+# UNSAFE VOICES (10 variations - urgent/dramatic/commanding)
+# =============================================================================
+unsafe_voices:
+  # Deep authoritative males
+  - name: "Josh"
+    voice_id: "TxGEqnHWrfWFTfGW9XjX"  # Deep, authoritative, commanding
+    stability: 0.30
+    similarity_boost: 0.85
+    style: 0.50
+    description: "Deep authoritative male - commanding presence"
+    
+  - name: "Callum"
+    voice_id: "N2lVS1w4EtoT3dr4eOWO"  # Intense, dramatic
+    stability: 0.25
+    similarity_boost: 0.80
+    style: 0.60
+    description: "Dramatic intense male - movie trailer vibes"
+    
+  # Professional urgent
+  - name: "Adam"
+    voice_id: "pNInz6obpgDQGcFmaJgB"  # Professional urgency
+    stability: 0.40
+    similarity_boost: 0.75
+    style: 0.40
+    description: "Professional urgent male"
+    
+  # Blue collar rough
+  - name: "Clyde"
+    voice_id: "2EiwWnXFnvU5JabPnv8n"  # Raspy, rough
+    stability: 0.35
+    similarity_boost: 0.80
+    style: 0.45
+    description: "Blue collar rough male"
+    
+  # Russian accent male
+  - name: "Arnold"
+    voice_id: "VR6AewLTigWG4xSOukaG"  # Strong crisp assertive
+    stability: 0.30
+    similarity_boost: 0.85
+    style: 0.50
+    description: "Assertive male - eastern European tones"
+    
+  # Provocative/sultry females
+  - name: "Serena"
+    voice_id: "pFZP5JQG7iQjIQuC4Bku"  # Sultry, mature female
+    stability: 0.35
+    similarity_boost: 0.80
+    style: 0.55
+    description: "Sultry provocative female"
+    
+  - name: "Elli"
+    voice_id: "MF3mGyEYCl7XYWbV9V6O"  # Emotional expressive female
+    stability: 0.30
+    similarity_boost: 0.85
+    style: 0.50
+    description: "Expressive dramatic female"
+    
+  # Professional female urgent
+  - name: "Charlotte"
+    voice_id: "XB0fDUnXU5powFXDhCwa"  # Clear professional female
+    stability: 0.40
+    similarity_boost: 0.75
+    style: 0.45
+    description: "Professional female authority"
+    
+  # Young female (for granddaughters)
+  - name: "Lily"
+    voice_id: "pFZP5JQG7iQjIQuC4Bku"  # Using Serena but will adjust for younger tone
+    stability: 0.35
+    similarity_boost: 0.70
+    style: 0.40
+    description: "Young concerned female"
+    
+  # Russian/Eastern European female
+  - name: "Freya"
+    voice_id: "jsCqWAovK2LkecY7zXl4"  # Strong confident female
+    stability: 0.35
+    similarity_boost: 0.80
+    style: 0.50
+    description: "Strong confident female - slight accent"
+
+# =============================================================================
+# SAFE VOICES (10 variations - calm/reassuring/warm)
+# =============================================================================
+safe_voices:
+  # Warm professional males
+  - name: "Adam"
+    voice_id: "pNInz6obpgDQGcFmaJgB"  # Warm professional
+    stability: 0.75
+    similarity_boost: 0.70
+    style: 0.30
+    description: "Warm professional male"
+    
+  - name: "Antoni"
+    voice_id: "ErXwobaYiN019PkySvjV"  # Well-rounded balanced
+    stability: 0.70
+    similarity_boost: 0.75
+    style: 0.25
+    description: "Balanced clear male"
+    
+  # Friendly casual male
+  - name: "Charlie"
+    voice_id: "IKne3meq5aSn9XLyUdCD"  # Casual natural
+    stability: 0.65
+    similarity_boost: 0.70
+    style: 0.35
+    description: "Friendly casual male"
+    
+  # Blue collar reassuring
+  - name: "Sam"
+    voice_id: "yoZ06aMxZJJ28mfd3POQ"  # Dynamic expressive
+    stability: 0.70
+    similarity_boost: 0.75
+    style: 0.30
+    description: "Reassuring blue collar male"
+    
+  # Soothing females
+  - name: "Charlotte"
+    voice_id: "XB0fDUnXU5powFXDhCwa"  # Seductive calm
+    stability: 0.80
+    similarity_boost: 0.75
+    style: 0.20
+    description: "Soothing calm female"
+    
+  - name: "Bella"
+    voice_id: "EXAVITQu4vr4xnSDxMaL"  # Soft young American
+    stability: 0.75
+    similarity_boost: 0.70
+    style: 0.25
+    description: "Soft reassuring female"
+    
+  - name: "Rachel"
+    voice_id: "21m00Tcm4TlvDq8ikWAM"  # Calm narrative
+    stability: 0.80
+    similarity_boost: 0.75
+    style: 0.20
+    description: "Calm narrative female"
+    
+  # Young female (granddaughter voice)
+  - name: "Matilda"
+    voice_id: "XrExE9yKIg1WjnnlVkGX"  # Warm young female
+    stability: 0.75
+    similarity_boost: 0.70
+    style: 0.30
+    description: "Warm young cheerful female"
+    
+  # Another young voice
+  - name: "Dorothy"
+    voice_id: "ThT5KcBeYPX3keUQqHPh"  # Pleasant British young
+    stability: 0.75
+    similarity_boost: 0.70
+    style: 0.25
+    description: "Pleasant young British female"
+    
+  # Warm mature female
+  - name: "Grace"
+    voice_id: "oWAxZDx7w5VEj9dCyTzz"  # Gentle mature
+    stability: 0.80
+    similarity_boost: 0.75
+    style: 0.20
+    description: "Gentle mature reassuring female"
+
+# =============================================================================
+# GENERATION SETTINGS
+# =============================================================================
+settings:
+  output_dir: "AudioCoolness"  # Relative to DustCollectorSoftware/
+  model: "eleven_monolingual_v1"  # or "eleven_multilingual_v2" for accents
+  
+  # File naming convention: {category}_{voice}_{index:03d}.mp3
+  # Example: unsafe_josh_001.mp3, safe_charlotte_015.mp3
+# ElevenLabs Audio Announcement Configuration
+# This file defines all messages and voice settings for your dust collector announcements
+
+# =============================================================================
+# UNSAFE AIR MESSAGES (20 variations)
+# =============================================================================
+unsafe_messages:
+  - "Warning! Unsafe particulate matter detected. Air filtration system activated."
+  - "Attention! Air quality has dropped below safe levels. Filter engaged."
+  - "Alert! Hazardous dust levels detected. Filtration in progress."
+  - "Caution! Breathing hazard present. Air scrubber running."
+  - "Critical! Airborne particles exceed safe limits. Stand clear."
+  - "Danger! Toxic dust concentration detected. Emergency filtration activated."
+  - "Advisory! Workshop air quality compromised. Ventilation system engaged."
+  - "Notice! Particulate matter levels unsafe. Air purification in progress."
+  - "Warning! Respiratory hazard detected. Do not remove dust masks."
+  - "Alert! Microscopic particles detected above threshold. Filter running at maximum."
+  - "Heads up! The air's gotten sketchy. Filter's doing its thing."
+  - "Yo! Air quality tanked. Scrubber's on it, boss."
+  - "Attention! Environmental hazard present. Breathe carefully until further notice."
+  - "Warning! The shop air has become contaminated. Air cleaning system operational."
+  - "Alert! Dust storm detected. Filtration protocol initiated."
+  - "Caution! Invisible particles everywhere. Don't breathe deep till I say so."
+  - "Emergency! Air quality failure. All personnel maintain respiratory protection."
+  - "Warning! Particulate saturation detected. Maximum filtration engaged."
+  - "Attention! Workshop atmosphere compromised. Air treatment underway."
+  - "Advisory! Airborne contaminants present. Filtration system at full capacity."
+
+# =============================================================================
+# SAFE AIR MESSAGES (20 variations)
+# =============================================================================
+safe_messages:
+  - "All clear. Air quality restored to safe levels."
+  - "Air quality is now within safe parameters."
+  - "Filtration complete. Breathe easy."
+  - "Safe air confirmed. You may resume normal operations."
+  - "Environment secured. Air quality good."
+  - "The coast is clear. Air is clean and safe."
+  - "Good news! Air quality back to normal. Carry on."
+  - "Air purification successful. Safe breathing conditions restored."
+  - "All systems green. Air quality optimal."
+  - "Relax! The air's good again. You're all set."
+  - "We're good to go. Air quality A-OK."
+  - "Breathe free, boss. Air's clean as a whistle."
+  - "Mission accomplished. Air quality within acceptable range."
+  - "Status update: Air quality normalized. Safe to continue work."
+  - "Everything's fine now. Air is perfectly safe."
+  - "Hazard cleared. Workshop air quality restored."
+  - "Air treatment complete. Safe breathing environment confirmed."
+  - "Good to go! Air quality monitoring shows all clear."
+  - "Atmosphere stabilized. You can breathe normally again."
+  - "Air quality check: Passed. Safe conditions confirmed."
+
+# =============================================================================
+# UNSAFE VOICES (10 variations - urgent/dramatic/commanding)
+# =============================================================================
+unsafe_voices:
+  # Deep authoritative males
+  - name: "Josh"
+    voice_id: "TxGEqnHWrfWFTfGW9XjX"  # Deep, authoritative, commanding
+    stability: 0.30
+    similarity_boost: 0.85
+    style: 0.50
+    description: "Deep authoritative male - commanding presence"
+    
+  - name: "Callum"
+    voice_id: "N2lVS1w4EtoT3dr4eOWO"  # Intense, dramatic
+    stability: 0.25
+    similarity_boost: 0.80
+    style: 0.60
+    description: "Dramatic intense male - movie trailer vibes"
+    
+  # Professional urgent
+  - name: "Adam"
+    voice_id: "pNInz6obpgDQGcFmaJgB"  # Professional urgency
+    stability: 0.40
+    similarity_boost: 0.75
+    style: 0.40
+    description: "Professional urgent male"
+    
+  # Blue collar rough
+  - name: "Clyde"
+    voice_id: "2EiwWnXFnvU5JabPnv8n"  # Raspy, rough
+    stability: 0.35
+    similarity_boost: 0.80
+    style: 0.45
+    description: "Blue collar rough male"
+    
+  # Russian accent male
+  - name: "Arnold"
+    voice_id: "VR6AewLTigWG4xSOukaG"  # Strong crisp assertive
+    stability: 0.30
+    similarity_boost: 0.85
+    style: 0.50
+    description: "Assertive male - eastern European tones"
+    
+  # Provocative/sultry females
+  - name: "Serena"
+    voice_id: "pFZP5JQG7iQjIQuC4Bku"  # Sultry, mature female
+    stability: 0.35
+    similarity_boost: 0.80
+    style: 0.55
+    description: "Sultry provocative female"
+    
+  - name: "Elli"
+    voice_id: "MF3mGyEYCl7XYWbV9V6O"  # Emotional expressive female
+    stability: 0.30
+    similarity_boost: 0.85
+    style: 0.50
+    description: "Expressive dramatic female"
+    
+  # Professional female urgent
+  - name: "Charlotte"
+    voice_id: "XB0fDUnXU5powFXDhCwa"  # Clear professional female
+    stability: 0.40
+    similarity_boost: 0.75
+    style: 0.45
+    description: "Professional female authority"
+    
+  # Young female (for granddaughters)
+  - name: "Lily"
+    voice_id: "pFZP5JQG7iQjIQuC4Bku"  # Using Serena but will adjust for younger tone
+    stability: 0.35
+    similarity_boost: 0.70
+    style: 0.40
+    description: "Young concerned female"
+    
+  # Russian/Eastern European female
+  - name: "Freya"
+    voice_id: "jsCqWAovK2LkecY7zXl4"  # Strong confident female
+    stability: 0.35
+    similarity_boost: 0.80
+    style: 0.50
+    description: "Strong confident female - slight accent"
+
+# =============================================================================
+# SAFE VOICES (10 variations - calm/reassuring/warm)
+# =============================================================================
+safe_voices:
+  # Warm professional males
+  - name: "Adam"
+    voice_id: "pNInz6obpgDQGcFmaJgB"  # Warm professional
+    stability: 0.75
+    similarity_boost: 0.70
+    style: 0.30
+    description: "Warm professional male"
+    
+  - name: "Antoni"
+    voice_id: "ErXwobaYiN019PkySvjV"  # Well-rounded balanced
+    stability: 0.70
+    similarity_boost: 0.75
+    style: 0.25
+    description: "Balanced clear male"
+    
+  # Friendly casual male
+  - name: "Charlie"
+    voice_id: "IKne3meq5aSn9XLyUdCD"  # Casual natural
+    stability: 0.65
+    similarity_boost: 0.70
+    style: 0.35
+    description: "Friendly casual male"
+    
+  # Blue collar reassuring
+  - name: "Sam"
+    voice_id: "yoZ06aMxZJJ28mfd3POQ"  # Dynamic expressive
+    stability: 0.70
+    similarity_boost: 0.75
+    style: 0.30
+    description: "Reassuring blue collar male"
+    
+  # Soothing females
+  - name: "Charlotte"
+    voice_id: "XB0fDUnXU5powFXDhCwa"  # Seductive calm
+    stability: 0.80
+    similarity_boost: 0.75
+    style: 0.20
+    description: "Soothing calm female"
+    
+  - name: "Bella"
+    voice_id: "EXAVITQu4vr4xnSDxMaL"  # Soft young American
+    stability: 0.75
+    similarity_boost: 0.70
+    style: 0.25
+    description: "Soft reassuring female"
+    
+  - name: "Rachel"
+    voice_id: "21m00Tcm4TlvDq8ikWAM"  # Calm narrative
+    stability: 0.80
+    similarity_boost: 0.75
+    style: 0.20
+    description: "Calm narrative female"
+    
+  # Young female (granddaughter voice)
+  - name: "Matilda"
+    voice_id: "XrExE9yKIg1WjnnlVkGX"  # Warm young female
+    stability: 0.75
+    similarity_boost: 0.70
+    style: 0.30
+    description: "Warm young cheerful female"
+    
+  # Another young voice
+  - name: "Dorothy"
+    voice_id: "ThT5KcBeYPX3keUQqHPh"  # Pleasant British young
+    stability: 0.75
+    similarity_boost: 0.70
+    style: 0.25
+    description: "Pleasant young British female"
+    
+  # Warm mature female
+  - name: "Grace"
+    voice_id: "oWAxZDx7w5VEj9dCyTzz"  # Gentle mature
+    stability: 0.80
+    similarity_boost: 0.75
+    style: 0.20
+    description: "Gentle mature reassuring female"
+
+# =============================================================================
+# GENERATION SETTINGS
+# =============================================================================
+settings:
+  output_dir: "AudioCoolness"  # Relative to DustCollectorSoftware/
+  model: "eleven_turbo_v2_5"  # Fast, high-quality, FREE TIER compatible
+  # Other options: "eleven_flash_v2_5" (fastest), "eleven_turbo_v2" (also fast)
+  
+  # File naming convention: {category}_{voice}_{index:03d}.mp3
+  # Example: unsafe_josh_001.mp3, safe_charlotte_015.mp3

@@ -1,0 +1,12 @@
+# Python dependencies for ElevenLabs Audio Announcement System
+# Install with: pip install -r requirements.txt
+
+# ElevenLabs API client
+elevenlabs>=0.2.0
+
+# YAML configuration parsing
+pyyaml>=6.0
+
+# Optional: Python-based audio playback (alternative to mpg123)
+# Uncomment if you want to use pygame for playback
+# pygame>=2.5.0
