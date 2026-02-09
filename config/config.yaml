@@ -54,6 +54,10 @@ aqm:
   filter_window_bad_mult: 5
   # OR explicitly:
   # filter_window_bad: 25
+  enabled: true
+  audio_dir: "AudioCoolness/AudioCoolness/"
+  player: mpg123
+  min_seconds_between: 60
 
 
 features:
@@ -83,7 +87,7 @@ mock_sim:
   pm25_bump: 45
   pm25_bump_s: 8
 
-announce:
+old_crappy_announce:
   enabled: true
   min_seconds_between: 60
   engine: espeak-ng
