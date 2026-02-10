@@ -1,0 +1,54 @@
+╔══════════════════════════════════════════════════════════════╗
+║     DUST COLLECTOR ANALYSIS TOOLKIT - QUICK REFERENCE        ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  📊 GENERATE DIAGRAMS                                        ║
+║  ─────────────────────────────────────────────────────────   ║
+║  make                        Generate all diagrams           ║
+║  make architecture           System architecture only        ║
+║  make dataflow              Data flow diagram                ║
+║  make statemachine          Gate state machine               ║
+║  make events                Event pub/sub relationships      ║
+║  make components            Component layers                 ║
+║  make modules               Module dependencies              ║
+║                                                              ║
+║  🖼️  VIEW DIAGRAMS                                           ║
+║  ─────────────────────────────────────────────────────────   ║
+║  make view                  Open interactive viewer          ║
+║  ./VIEW_DIAGRAMS.sh         Launch viewer directly           ║
+║  cd diagrams/               Browse PNG files                 ║
+║                                                              ║
+║  🧹 MAINTENANCE                                              ║
+║  ─────────────────────────────────────────────────────────   ║
+║  make clean                 Remove all generated diagrams    ║
+║  make clean all             Clean and regenerate             ║
+║  make clean all view        Clean, generate, and view        ║
+║                                                              ║
+║  📁 FILES                                                    ║
+║  ─────────────────────────────────────────────────────────   ║
+║  diagrams/system_diagram_enhanced.png    Main diagram (150dpi)║
+║  diagrams/system_diagram_poster.png      Print version (300dpi)║
+║  diagrams/dataflow_diagram.png           Data flow           ║
+║  diagrams/state_machine.png              State machine       ║
+║  diagrams/event_flow.png                 Event relationships ║
+║  diagrams/component_architecture.png     Component layers    ║
+║  diagrams/module_dependencies.png        Module imports      ║
+║                                                              ║
+║  💡 TIPS                                                     ║
+║  ─────────────────────────────────────────────────────────   ║
+║  • Run 'make' after code changes to update diagrams          ║
+║  • Use poster version for documentation/presentations        ║
+║  • Use enhanced version for quick reference                  ║
+║  • Run 'make help' for full target list                      ║
+║  • Read README.md for detailed documentation                 ║
+║                                                              ║
+║  ⚡ QUICK WORKFLOWS                                          ║
+║  ─────────────────────────────────────────────────────────   ║
+║  After changing events:    make events view                  ║
+║  After adding modules:     make modules components view      ║
+║  Before committing:        make clean all                    ║
+║  For documentation:        make architecture (use poster)    ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+Keep this file handy or print it for quick reference!
