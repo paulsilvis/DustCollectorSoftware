@@ -1,0 +1,119 @@
+MANUAL INSTALLATION GUIDE
+=========================
+
+If the install script isn't working, here's how to do it manually:
+
+STEP 1: Create the directory structure
+---------------------------------------
+cd ~/DustCollectorSoftware
+mkdir -p analysis/diagrams
+
+
+STEP 2: Move the toolkit files
+-------------------------------
+After unzipping analysis-toolkit.zip in ~/DustCollectorSoftware, you'll have
+these files in the root directory. Move them into analysis/:
+
+mv INSTALL_SIMPLE.sh analysis/     # (optional, for reference)
+mv generate_diagrams.py analysis/
+mv Makefile analysis/
+mv diagrams_viewer.html analysis/
+mv VIEW_DIAGRAMS.sh analysis/
+mv README.md analysis/
+mv QUICK_REFERENCE.txt analysis/
+
+
+STEP 3: Set permissions
+------------------------
+chmod +x analysis/generate_diagrams.py
+chmod +x analysis/VIEW_DIAGRAMS.sh
+
+
+STEP 4: Test it
+---------------
+cd analysis
+make
+
+If you get an error about the src/ directory, the script is looking in the
+wrong place. Run this command to see what paths it's detecting:
+
+python3 generate_diagrams.py architecture
+
+Look at the output - it will show you what paths it found. The "Project root"
+should be ~/DustCollectorSoftware and "Source" should be 
+~/DustCollectorSoftware/src
+
+
+STEP 5: If paths are wrong
+---------------------------
+Edit analysis/generate_diagrams.py and find this section (around line 235):
+
+    # Find source directory
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent if script_dir.name == 'analysis' else script_dir
+    src_dir = project_root / 'src'
+
+Change the first line to use .resolve():
+
+    script_dir = Path(__file__).parent.resolve()
+
+This forces Python to use absolute paths instead of relative ones.
+
+
+TROUBLESHOOTING
+---------------
+
+Problem: "Source directory not found"
+Solution: Make sure you're in ~/DustCollectorSoftware/analysis/ when running make,
+         and that ~/DustCollectorSoftware/src/ exists
+
+Problem: "Graphviz not found"
+Solution: sudo apt-get install graphviz
+
+Problem: Files still in root directory
+Solution: Run the manual steps above to move them into analysis/
+
+Problem: Import errors in Python
+Solution: The script uses only standard library - no pip installs needed
+
+Problem: Can't execute scripts
+Solution: chmod +x analysis/generate_diagrams.py analysis/VIEW_DIAGRAMS.sh
+
+
+FINAL DIRECTORY STRUCTURE
+-------------------------
+After installation, you should have:
+
+~/DustCollectorSoftware/
+├── analysis/
+│   ├── generate_diagrams.py
+│   ├── Makefile
+│   ├── diagrams_viewer.html
+│   ├── VIEW_DIAGRAMS.sh
+│   ├── README.md
+│   ├── QUICK_REFERENCE.txt
+│   └── diagrams/           (created by make)
+│       ├── system_diagram_enhanced.png
+│       ├── system_diagram_poster.png
+│       ├── dataflow_diagram.png
+│       ├── state_machine.png
+│       ├── event_flow.png
+│       ├── component_architecture.png
+│       └── module_dependencies.png
+├── src/
+│   ├── hardware/
+│   ├── tasks/
+│   └── util/
+├── AudioCoolness/
+├── config/
+└── ... (other directories)
+
+
+QUICK TEST
+----------
+cd ~/DustCollectorSoftware/analysis
+make architecture
+
+This should generate just the main system diagram. If it works, run:
+make all
+make view
