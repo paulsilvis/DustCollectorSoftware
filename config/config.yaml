@@ -55,10 +55,15 @@ aqm:
   # OR explicitly:
   # filter_window_bad: 25
   enabled: true
-  audio_dir: "AudioCoolness/AudioCoolness/"
+  audio_dir: "AudioCoolness/"
   player: mpg123
   min_seconds_between: 60
 
+tool_announce:
+  enabled: true
+  audio_dir: "AudioCoolness"
+  player: "mpg123"
+  announce_probability: 1.0
 
 features:
   lcd: true
