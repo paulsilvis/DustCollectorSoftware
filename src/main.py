@@ -89,6 +89,7 @@ async def _run_app(config_path: str) -> None:
     from .tasks.saw_gate_controller import run_saw_gate_controller
     from .tasks.adc_watch import AdcWatchConfig, run_adc_watch
     from .tasks.collector_ssr_controller import run_collector_ssr_controller
+    from .tasks.lcd_task import run_lcd_task
 
     adc_cfg = AdcWatchConfig(
         i2c_address=0x48,
@@ -121,6 +122,8 @@ async def _run_app(config_path: str) -> None:
             run_collector_ssr_controller(bus, cfg),
             name="collector_ssr",
         )
+
+        tg.create_task(run_lcd_task(bus), name="lcd")
 
     log.info("All tasks exited normally")
 
