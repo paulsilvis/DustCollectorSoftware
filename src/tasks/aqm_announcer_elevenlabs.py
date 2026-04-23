@@ -89,8 +89,8 @@ class _Announcer:
                 
     async def _play_audio_mpg123(self, filepath: Path) -> None:
         """Play audio using mpg123 command-line player."""
-        cmd = ["mpg123", "-q", str(filepath)]  # -q for quiet (no output)
-        
+        # cmd = ["mpg123", "-q", str(filepath)]  # -q for quiet (no output)
+        cmd = ["mpg123", "-q", "-a", "hw:1,0", str(filepath)]        
         try:
             proc = await asyncio.to_thread(
                 subprocess.run,

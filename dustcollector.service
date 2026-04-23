@@ -17,8 +17,8 @@ WorkingDirectory=/home/paul/DustCollectorSoftware
 # Pick ONE of these ExecStart lines and delete the other.
 
 # (A) VENV-based:
-ExecStart=/home/paul/DustCollectorSoftware/.venv/bin/python -m dustcollector.main --config /home/paul/DustCollectorSoftware/config/config.yaml
-
+### old shit ExecStart=/home/paul/DustCollectorSoftware/.venv/bin/python -m dustcollector.main --config /home/paul/DustCollectorSoftware/config/config.yaml
+ExecStart=/home/paul/DustCollectorSoftware/.venv/bin/python -m src.main --config /home/paul/DustCollectorSoftware/config/config.yaml
 # (B) Package/console-script based:
 # ExecStart=/usr/local/bin/dustcollector --config /home/paul/DustCollectorSoftware/config/config.yaml
 
