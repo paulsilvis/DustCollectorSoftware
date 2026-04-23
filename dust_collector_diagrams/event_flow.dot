@@ -1,0 +1,70 @@
+digraph EventFlow {
+  rankdir=LR;
+  node [shape=box, style=rounded];
+  
+  // Event nodes
+  evt_aqm_metrics [label="aqm.metrics", shape=ellipse, fillcolor=lightyellow, style=filled];
+  evt_system_any_active [label="system.any_active", shape=ellipse, fillcolor=lightyellow, style=filled];
+  evt_____off [label="{...}.off", shape=ellipse, fillcolor=lightyellow, style=filled];
+  evt_____on [label="{...}.on", shape=ellipse, fillcolor=lightyellow, style=filled];
+  
+  // Publishers
+  src_hardware_pms1003 [fillcolor=lightblue, style=filled];
+  src_hardware_pms1003 -> evt_aqm_metrics [color=blue];
+  src_tasks_aqm_reader [fillcolor=lightblue, style=filled];
+  src_tasks_aqm_reader -> evt_aqm_metrics [color=blue];
+  src_tasks_machine_manager [fillcolor=lightblue, style=filled];
+  src_tasks_machine_manager -> evt_system_any_active [color=blue];
+  src_tasks_adc_watch [fillcolor=lightblue, style=filled];
+  src_tasks_adc_watch -> evt_____off [color=blue];
+  src_tasks_adc_watch [fillcolor=lightblue, style=filled];
+  src_tasks_adc_watch -> evt_____on [color=blue];
+  
+  // Subscribers
+  src_tasks_aqm_announcer [fillcolor=lightgreen, style=filled];
+  evt_aqm_metrics -> src_tasks_aqm_announcer [color=green];
+  src_tasks_aqm_policy [fillcolor=lightgreen, style=filled];
+  evt_aqm_metrics -> src_tasks_aqm_policy [color=green];
+  src_tasks_collector_controller [fillcolor=lightgreen, style=filled];
+  evt_aqm_metrics -> src_tasks_collector_controller [color=green];
+  src_tasks_collector_ssr_controller [fillcolor=lightgreen, style=filled];
+  evt_aqm_metrics -> src_tasks_collector_ssr_controller [color=green];
+  src_tasks_display_status [fillcolor=lightgreen, style=filled];
+  evt_aqm_metrics -> src_tasks_display_status [color=green];
+  src_tasks_funhouse [fillcolor=lightgreen, style=filled];
+  evt_aqm_metrics -> src_tasks_funhouse [color=green];
+  src_tasks_gate_controller [fillcolor=lightgreen, style=filled];
+  evt_aqm_metrics -> src_tasks_gate_controller [color=green];
+  src_tasks_lathe_gate_controller [fillcolor=lightgreen, style=filled];
+  evt_aqm_metrics -> src_tasks_lathe_gate_controller [color=green];
+  src_tasks_machine_manager [fillcolor=lightgreen, style=filled];
+  evt_aqm_metrics -> src_tasks_machine_manager [color=green];
+  src_tasks_saw_gate_controller [fillcolor=lightgreen, style=filled];
+  evt_aqm_metrics -> src_tasks_saw_gate_controller [color=green];
+  src_tasks_sys_monitor [fillcolor=lightgreen, style=filled];
+  evt_aqm_metrics -> src_tasks_sys_monitor [color=green];
+  src_tasks_aqm_announcer [fillcolor=lightgreen, style=filled];
+  evt_system_any_active -> src_tasks_aqm_announcer [color=green];
+  src_tasks_aqm_policy [fillcolor=lightgreen, style=filled];
+  evt_system_any_active -> src_tasks_aqm_policy [color=green];
+  src_tasks_collector_controller [fillcolor=lightgreen, style=filled];
+  evt_system_any_active -> src_tasks_collector_controller [color=green];
+  src_tasks_collector_ssr_controller [fillcolor=lightgreen, style=filled];
+  evt_system_any_active -> src_tasks_collector_ssr_controller [color=green];
+  src_tasks_display_status [fillcolor=lightgreen, style=filled];
+  evt_system_any_active -> src_tasks_display_status [color=green];
+  src_tasks_lathe_gate_controller [fillcolor=lightgreen, style=filled];
+  evt_system_any_active -> src_tasks_lathe_gate_controller [color=green];
+  src_tasks_aqm_policy [fillcolor=lightgreen, style=filled];
+  evt_____off -> src_tasks_aqm_policy [color=green];
+  src_tasks_display_status [fillcolor=lightgreen, style=filled];
+  evt_____off -> src_tasks_display_status [color=green];
+  src_tasks_lathe_gate_controller [fillcolor=lightgreen, style=filled];
+  evt_____off -> src_tasks_lathe_gate_controller [color=green];
+  src_tasks_aqm_policy [fillcolor=lightgreen, style=filled];
+  evt_____on -> src_tasks_aqm_policy [color=green];
+  src_tasks_display_status [fillcolor=lightgreen, style=filled];
+  evt_____on -> src_tasks_display_status [color=green];
+  src_tasks_lathe_gate_controller [fillcolor=lightgreen, style=filled];
+  evt_____on -> src_tasks_lathe_gate_controller [color=green];
+}

@@ -1,0 +1,109 @@
+digraph ComponentArchitecture {
+  rankdir=TB;
+  node [shape=box, style="rounded,filled"];
+  compound=true;
+  newrank=true;
+  
+  // Event Bus at the center
+  subgraph cluster_core {
+    label="Core System";
+    style=filled;
+    fillcolor="#FFE0B2";
+    color="#F57C00";
+    penwidth=2;
+    
+    event_bus [label="Event Bus\n(Pub/Sub)", fillcolor="#FF6B6B", fontcolor=white, penwidth=2];
+    config [label="Config Loader", fillcolor="#FFA726"];
+    main [label="Main", fillcolor="#FFA726"];
+  }
+  
+  // I2C Hardware
+  subgraph cluster_i2c {
+    label="I2C Devices";
+    style=filled;
+    fillcolor="#E3F2FD";
+    color="#1976D2";
+    
+    ads1115 [label="ADS1115\n(ADC)", fillcolor="#42A5F5", fontcolor=white];
+    pcf_leds [label="PCF8574\n(LEDs)", fillcolor="#42A5F5", fontcolor=white];
+    pcf_relays [label="PCF8574\n(Relays)", fillcolor="#42A5F5", fontcolor=white];
+  }
+  
+  // UART Hardware
+  subgraph cluster_uart {
+    label="UART Devices";
+    style=filled;
+    fillcolor="#E8F5E9";
+    color="#388E3C";
+    
+    pms1003 [label="PMS1003\n(Air Quality)", fillcolor="#66BB6A", fontcolor=white];
+  }
+  
+  // Sensor Tasks
+  subgraph cluster_sensors {
+    label="Sensor Tasks";
+    style=filled;
+    fillcolor="#FFF3E0";
+    color="#F57C00";
+    
+    adc_watch [label="ADC Watch\n(Saw/Lathe)", fillcolor="#FFB74D"];
+    aqm_reader [label="AQM Reader\n(Air Quality)", fillcolor="#FFB74D"];
+  }
+  
+  // Gate Controllers
+  subgraph cluster_gates {
+    label="Gate Controllers";
+    style=filled;
+    fillcolor="#E8F5E9";
+    color="#388E3C";
+    
+    saw_gate [label="Saw Gate\nController", fillcolor="#81C784"];
+    lathe_gate [label="Lathe Gate\nController", fillcolor="#81C784"];
+  }
+  
+  // Collector Control
+  subgraph cluster_collector {
+    label="Collector Control";
+    style=filled;
+    fillcolor="#F3E5F5";
+    color="#7B1FA2";
+    
+    collector_ssr [label="Collector SSR\nController", fillcolor="#BA68C8", fontcolor=white];
+  }
+  
+  // Air Quality Management
+  subgraph cluster_aqm {
+    label="Air Quality Management";
+    style=filled;
+    fillcolor="#E0F2F1";
+    color="#00796B";
+    
+    aqm_policy [label="AQM Policy", fillcolor="#4DB6AC"];
+    aqm_announcer [label="AQM Announcer", fillcolor="#4DB6AC"];
+  }
+  
+  // Hardware connections
+  ads1115 -> adc_watch [label="I2C", color="#1976D2", penwidth=2];
+  pms1003 -> aqm_reader [label="UART", color="#388E3C", penwidth=2];
+  
+  // Task to Event Bus
+  adc_watch -> event_bus [label="publish", color="#E91E63", style=dashed];
+  aqm_reader -> event_bus [label="publish", color="#E91E63", style=dashed];
+  
+  // Event Bus to Controllers
+  event_bus -> saw_gate [label="subscribe", color="#7CB342", style=dashed];
+  event_bus -> lathe_gate [label="subscribe", color="#7CB342", style=dashed];
+  event_bus -> collector_ssr [label="subscribe", color="#7CB342", style=dashed];
+  event_bus -> aqm_policy [label="subscribe", color="#7CB342", style=dashed];
+  event_bus -> aqm_announcer [label="subscribe", color="#7CB342", style=dashed];
+  
+  // Controllers to Hardware
+  saw_gate -> pcf_relays [label="control", color="#1976D2", penwidth=2];
+  saw_gate -> pcf_leds [label="status", color="#1976D2"];
+  lathe_gate -> pcf_relays [label="control", color="#1976D2", penwidth=2];
+  lathe_gate -> pcf_leds [label="status", color="#1976D2"];
+  
+  // Config to main
+  config -> main [style=dashed];
+  main -> event_bus [style=dashed];
+}

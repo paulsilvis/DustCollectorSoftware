@@ -84,7 +84,7 @@ async def _run_app(config_path: str) -> None:
     # Local imports keep startup ordering explicit
     from .tasks.aqm_reader import aqm_reader
     from .tasks.aqm_policy import run_aqm_policy
-    from .tasks.aqm_announcer import run_aqm_announcer
+    from .tasks.aqm_announcer_elevenlabs import run_aqm_announcer
     from .tasks.lathe_gate_controller import run_lathe_gate_controller
     from .tasks.saw_gate_controller import run_saw_gate_controller
     from .tasks.adc_watch import AdcWatchConfig, run_adc_watch

@@ -1,0 +1,107 @@
+digraph DataFlow {
+  rankdir=LR;
+  bgcolor="#fafafa";
+  fontname="Arial";
+  
+  node [fontname="Arial", fontsize=11, style=filled];
+  edge [fontname="Arial", fontsize=9];
+  
+  labelloc=t;
+  label=<<B><FONT POINT-SIZE="16">Data Flow: Tool Detection → Fan Control</FONT></B>>;
+  
+  // Input sensors
+  subgraph cluster_input {
+    label="Physical Inputs";
+    style=filled;
+    fillcolor="#E8F5E9";
+    color="#388E3C";
+    penwidth=2;
+    
+    saw_current [label="Saw
+Current Sensor", shape=box, fillcolor="#66BB6A"];
+    lathe_current [label="Lathe
+Current Sensor", shape=box, fillcolor="#66BB6A"];
+    air_sensor [label="Particulate
+Sensor", shape=box, fillcolor="#66BB6A"];
+  }
+  
+  // ADC
+  adc [label=<<B>ADS1115</B><BR/>Analog to Digital>, shape=box, fillcolor="#42A5F5", fontcolor=white];
+  
+  // Processing
+  subgraph cluster_process {
+    label="Signal Processing";
+    style=filled;
+    fillcolor="#FFF9C4";
+    color="#F57F17";
+    penwidth=2;
+    
+    hysteresis [label="Hysteresis
+Filtering", shape=box, fillcolor="#FFEB3B"];
+    debounce [label="Debounce
+(3 samples)", shape=box, fillcolor="#FFEB3B"];
+  }
+  
+  // Event generation
+  events [label="Events:
+saw.on/off
+lathe.on/off", shape=ellipse, fillcolor="#BA68C8", fontcolor=white];
+  
+  // Event bus
+  bus [label="Event Bus", shape=cylinder, fillcolor="#EF5350", fontcolor=white];
+  
+  // Controllers
+  subgraph cluster_control {
+    label="Gate Controllers";
+    style=filled;
+    fillcolor="#E1F5FE";
+    color="#0277BD";
+    penwidth=2;
+    
+    saw_ctrl [label="Saw Gate
+Controller", shape=box, fillcolor="#29B6F6"];
+    lathe_ctrl [label="Lathe Gate
+Controller", shape=box, fillcolor="#29B6F6"];
+  }
+  
+  // Outputs
+  subgraph cluster_output {
+    label="Physical Outputs";
+    style=filled;
+    fillcolor="#FCE4EC";
+    color="#C2185B";
+    penwidth=2;
+    
+    saw_gate [label="Saw
+Blast Gate", shape=box, fillcolor="#EC407A"];
+    lathe_gate [label="Lathe
+Blast Gate", shape=box, fillcolor="#EC407A"];
+    collector [label="Dust Collector
+Fan", shape=box, fillcolor="#EC407A"];
+    leds [label="Status
+LEDs", shape=box, fillcolor="#EC407A"];
+  }
+  
+  // Connections
+  saw_current -> adc [penwidth=2];
+  lathe_current -> adc [penwidth=2];
+  
+  adc -> hysteresis [penwidth=2, label="10Hz"];
+  hysteresis -> debounce [penwidth=2];
+  debounce -> events [penwidth=2, label="state change"];
+  
+  events -> bus [penwidth=2];
+  
+  bus -> saw_ctrl [penwidth=2];
+  bus -> lathe_ctrl [penwidth=2];
+  
+  saw_ctrl -> saw_gate [penwidth=2, label="open/close"];
+  lathe_ctrl -> lathe_gate [penwidth=2, label="open/close"];
+  
+  saw_ctrl -> leds [style=dashed, label="green/red"];
+  lathe_ctrl -> leds [style=dashed, label="green/red"];
+  
+  bus -> collector [penwidth=2, style=dashed, label="any tool active"];
+  
+  air_sensor -> bus [penwidth=2, color="#43A047", label="aqm.metrics"];
+}
