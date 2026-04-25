@@ -9,6 +9,11 @@ from ..events import Event
 
 log = logging.getLogger(__name__)
 
+# How long to wait after an I2C error before retrying
+I2C_RETRY_DELAY_S = 1.0
+# How many consecutive I2C errors before logging at ERROR level
+I2C_ERROR_THRESHOLD = 3
+
 
 @dataclass(frozen=True)
 class AdcWatchConfig:
@@ -55,9 +60,31 @@ async def _watch_one(
     is_on = False
     above_on = 0
     below_off = 0
+    i2c_errors = 0
 
     while True:
-        v = float(analog_in.voltage)
+        try:
+            v = float(analog_in.voltage)
+        except OSError as e:
+            i2c_errors += 1
+            if i2c_errors >= I2C_ERROR_THRESHOLD:
+                log.error(
+                    "ADC %s: %d consecutive I2C errors (latest: %s) — "
+                    "retrying in %.1fs",
+                    tool, i2c_errors, e, I2C_RETRY_DELAY_S,
+                )
+            else:
+                log.warning(
+                    "ADC %s: I2C read error (%s) — retrying in %.1fs",
+                    tool, e, I2C_RETRY_DELAY_S,
+                )
+            await asyncio.sleep(I2C_RETRY_DELAY_S)
+            continue
+
+        # Successful read — reset error counter
+        if i2c_errors > 0:
+            log.info("ADC %s: I2C recovered after %d error(s)", tool, i2c_errors)
+            i2c_errors = 0
 
         if not is_on:
             if v >= on_threshold:
@@ -88,6 +115,9 @@ async def run_adc_watch(cfg: AdcWatchConfig, bus: EventBus) -> None:
     ADS1115 detector with hysteresis for:
       - Saw  (A0): publishes saw.on / saw.off as src=adc.a0
       - Lathe(A1): publishes lathe.on / lathe.off as src=adc.a1
+
+    I2C read errors are caught and retried — a single bad transaction
+    no longer crashes the service.
     """
 
     # Hard dependency check: fail fast, fail loud

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 
 from smbus2 import SMBus
 
 log = logging.getLogger(__name__)
+
+# Retry parameters for I2C operations
+_I2C_RETRIES = 3
+_I2C_RETRY_DELAY_S = 0.05
 
 
 @dataclass(frozen=True)
@@ -33,6 +38,7 @@ class PcfRelays:
     - We do read-modify-write and touch only the specified bits.
     - active_low is defined at the PCF output pin (see PcfRelaysConfig).
     - We capture the original byte on init so we can restore it (optional).
+    - I2C reads and writes are retried up to _I2C_RETRIES times on OSError.
     """
 
     def __init__(self, cfg: PcfRelaysConfig) -> None:
@@ -102,7 +108,44 @@ class PcfRelays:
         )
 
     def _read_byte(self) -> int:
-        return int(self._bus.read_byte(self._cfg.addr))
+        last_exc: Exception | None = None
+        for attempt in range(_I2C_RETRIES):
+            try:
+                return int(self._bus.read_byte(self._cfg.addr))
+            except OSError as e:
+                last_exc = e
+                if attempt < _I2C_RETRIES - 1:
+                    log.warning(
+                        "PCF relay 0x%02x read error (attempt %d/%d): %s",
+                        self._cfg.addr, attempt + 1, _I2C_RETRIES, e,
+                    )
+                    time.sleep(_I2C_RETRY_DELAY_S)
+                else:
+                    log.error(
+                        "PCF relay 0x%02x read failed after %d attempts: %s — "
+                        "using cached value 0x%02x",
+                        self._cfg.addr, _I2C_RETRIES, e, self._cur,
+                    )
+                    return self._cur  # best-effort fallback
+        return self._cur  # unreachable but satisfies type checker
 
     def _write_byte(self, value: int) -> None:
-        self._bus.write_byte(self._cfg.addr, value & 0xFF)
+        last_exc: Exception | None = None
+        for attempt in range(_I2C_RETRIES):
+            try:
+                self._bus.write_byte(self._cfg.addr, value & 0xFF)
+                return
+            except OSError as e:
+                last_exc = e
+                if attempt < _I2C_RETRIES - 1:
+                    log.warning(
+                        "PCF relay 0x%02x write error (attempt %d/%d): %s",
+                        self._cfg.addr, attempt + 1, _I2C_RETRIES, e,
+                    )
+                    time.sleep(_I2C_RETRY_DELAY_S)
+                else:
+                    log.error(
+                        "PCF relay 0x%02x write 0x%02x FAILED after %d attempts: %s",
+                        self._cfg.addr, value & 0xFF, _I2C_RETRIES, e,
+                    )
+                    raise  # re-raise so caller knows the relay didn't move

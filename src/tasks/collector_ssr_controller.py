@@ -18,13 +18,13 @@ log = logging.getLogger(__name__)
 
 LED_CTRL_PIN = 5  # BCM pin for LED strip control (active-high)
 
+
 @dataclass(frozen=True)
 class CollectorSsrConfig:
     pin_bcm: int = 25
     active_high: bool = True
-
-    # Which tool events should drive the collector
     tools: tuple[str, ...] = ("saw", "lathe")
+    motor_delay_s: float = 0.0  # total delay from tool.on to motor start
 
 
 def _outputs_enabled(cfg: AppConfig) -> bool:
@@ -45,7 +45,17 @@ def _load_cfg(app_cfg: AppConfig) -> CollectorSsrConfig:
     else:
         tools = ("saw", "lathe")
 
-    return CollectorSsrConfig(pin_bcm=pin, active_high=active_high, tools=tools)
+    timing = app_cfg.raw.get("timing", {}) or {}
+    gate_delay_s = float(timing.get("gate_delay_s", 0.0))
+    solenoid_delay_s = float(timing.get("solenoid_delay_s", 0.0))
+    motor_delay_s = gate_delay_s + solenoid_delay_s
+
+    return CollectorSsrConfig(
+        pin_bcm=pin,
+        active_high=active_high,
+        tools=tools,
+        motor_delay_s=motor_delay_s,
+    )
 
 
 async def run_collector_ssr_controller(bus: EventBus, app_cfg: AppConfig) -> None:
@@ -53,8 +63,9 @@ async def run_collector_ssr_controller(bus: EventBus, app_cfg: AppConfig) -> Non
     Collector SSR controller.
 
     Policy:
-    - If ANY configured tool is ON -> SSR ON immediately.
-    - If ALL configured tools are OFF -> SSR OFF immediately.
+    - If ANY configured tool is ON -> after motor_delay_s, SSR ON.
+    - If ALL configured tools are OFF -> SSR OFF immediately (cancels any
+      pending delayed start).
     - No delay-off (per Paul's instruction).
 
     Event inputs:
@@ -70,7 +81,6 @@ async def run_collector_ssr_controller(bus: EventBus, app_cfg: AppConfig) -> Non
             app_cfg.mock,
             _outputs_enabled(app_cfg),
         )
-        # Still consume events so behavior is testable in logs if desired.
         q = bus.subscribe()
         active: set[str] = set()
         try:
@@ -86,10 +96,11 @@ async def run_collector_ssr_controller(bus: EventBus, app_cfg: AppConfig) -> Non
                 await asyncio.sleep(0)
         except asyncio.CancelledError:
             raise
-    
+
     if GPIOOut is None:
-        raise RuntimeError("RPi.GPIO not available but hardware.mode is real and outputs_enabled is true")
-    # early exit here if in mock mode
+        raise RuntimeError(
+            "RPi.GPIO not available but hardware.mode is real and outputs_enabled is true"
+        )
 
     led_strip_control = GPIOOut(LED_CTRL_PIN, active_high=True)
     ssr = GPIOOut(cfg.pin_bcm, active_high=cfg.active_high)
@@ -101,18 +112,36 @@ async def run_collector_ssr_controller(bus: EventBus, app_cfg: AppConfig) -> Non
     def blower_off() -> None:
         led_strip_control.off()
         ssr.off()
- 
+
     blower_off()
     ssr_on = False
+    pending_on: asyncio.Task[None] | None = None
+
     log.info(
-        "Collector SSR controller ready (pin=%s active_high=%s tools=%s) [OFF]",
+        "Collector SSR controller ready (pin=%s active_high=%s tools=%s "
+        "motor_delay_s=%.1f) [OFF]",
         cfg.pin_bcm,
         cfg.active_high,
         list(cfg.tools),
+        cfg.motor_delay_s,
     )
 
     q = bus.subscribe()
-    active: set[str] = set()
+    active = set()
+
+    async def _delayed_blower_on() -> None:
+        """Sleep motor_delay_s then turn on if tools still active."""
+        if cfg.motor_delay_s > 0:
+            log.info(
+                "Collector SSR: waiting %.1fs before motor start",
+                cfg.motor_delay_s,
+            )
+            await asyncio.sleep(cfg.motor_delay_s)
+        nonlocal ssr_on
+        if active:  # still something running after the delay
+            blower_on()
+            ssr_on = True
+            log.info("Collector ON (active=%s)", sorted(active))
 
     try:
         while True:
@@ -135,18 +164,35 @@ async def run_collector_ssr_controller(bus: EventBus, app_cfg: AppConfig) -> Non
                 continue
 
             want_on = bool(active)
-            if want_on and not ssr_on:
-                blower_on()
-                ssr_on = True
-                log.info("Collector ON (active=%s)", sorted(active))
-            elif (not want_on) and ssr_on:
-                blower_off()
-                ssr_on = False
-                log.info("Collector OFF")
+
+            if want_on and not ssr_on and pending_on is None:
+                # Schedule delayed motor start
+                pending_on = asyncio.create_task(_delayed_blower_on())
+
+            elif not want_on:
+                # Tool(s) all off — cancel any pending start and stop motor now
+                if pending_on is not None:
+                    pending_on.cancel()
+                    try:
+                        await pending_on
+                    except asyncio.CancelledError:
+                        pass
+                    pending_on = None
+                if ssr_on:
+                    blower_off()
+                    ssr_on = False
+                    log.info("Collector OFF")
+
+            # Clean up completed pending task
+            if pending_on is not None and pending_on.done():
+                pending_on = None
 
             await asyncio.sleep(0)
+
     except asyncio.CancelledError:
         log.info("Collector SSR controller cancelled; forcing OFF")
+        if pending_on is not None:
+            pending_on.cancel()
         try:
             blower_off()
         except Exception:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
+from ..config_loader import AppConfig
 from ..event_bus import EventBus
 from ..hardware.pcf_relays import PcfRelays
 from .base_gate_controller import BaseGateController, GateConfig
@@ -21,14 +22,19 @@ async def run_saw_gate_controller(
     bus: EventBus,
     relays: PcfRelays,
     relay_lock: asyncio.Lock,
+    app_cfg: AppConfig,
 ) -> None:
     """
     Saw gate controller:
-    - saw.on  -> LED GREEN, drive OPEN for MAX_DRIVE_S then stop
-    - saw.off -> LED RED,   drive CLOSE for MAX_DRIVE_S then stop
+    - saw.on  -> wait gate_delay_s, LED GREEN, drive OPEN for MAX_DRIVE_S then stop
+    - saw.off -> LED RED, drive CLOSE for MAX_DRIVE_S then stop
 
     relay_lock MUST be shared across all controllers using relays@0x21.
     """
+    gate_delay_s = float(
+        (app_cfg.raw.get("timing") or {}).get("gate_delay_s", 0.0)
+    )
+
     config = GateConfig(
         name="saw",
         event_on="saw.on",
@@ -37,6 +43,7 @@ async def run_saw_gate_controller(
         led_red_bit=SAW_LED_RED_BIT,
         relay_open_bit=SAW_RELAY_OPEN_BIT,
         relay_close_bit=SAW_RELAY_CLOSE_BIT,
+        gate_delay_s=gate_delay_s,
     )
 
     controller = BaseGateController(bus, relays, relay_lock, config)

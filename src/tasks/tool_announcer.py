@@ -17,6 +17,9 @@ CONFIG (in config.yaml):
       audio_dir: "AudioCoolness"
       player: "mpg123"
       announce_probability: 0.8   # 0.0-1.0, chance of announcing each event
+
+    timing:
+      close_sound_delay_s: 3.0    # wait after collector stops before tool-off sound
 """
 
 from __future__ import annotations
@@ -35,11 +38,17 @@ log = logging.getLogger("tool_announcer")
 class _ToolAnnouncer:
     """Plays random pre-generated audio files for tool on/off events."""
 
-    def __init__(self, audio_dir: str, player: str = "mpg123",
-                 announce_probability: float = 0.8) -> None:
+    def __init__(
+        self,
+        audio_dir: str,
+        player: str = "mpg123",
+        announce_probability: float = 0.8,
+        close_sound_delay_s: float = 0.0,
+    ) -> None:
         self._audio_dir = Path(audio_dir)
         self._player = player
         self._announce_probability = announce_probability
+        self._close_sound_delay_s = close_sound_delay_s
 
         # Load audio files: _files["saw_on"] = [Path, Path, ...]
         self._files: dict[str, list[Path]] = {}
@@ -88,6 +97,9 @@ class _ToolAnnouncer:
         """
         Play a random announcement for tool/state if probability check passes.
 
+        For 'off' events, waits close_sound_delay_s before playing so the
+        collector motor has time to stop first.
+
         Args:
             tool:  "saw" or "lathe"
             state: "on" or "off"
@@ -103,6 +115,13 @@ class _ToolAnnouncer:
         if not files:
             log.warning("No audio files for: %s", category)
             return
+
+        if state == "off" and self._close_sound_delay_s > 0:
+            log.info(
+                "tool-off sound: waiting %.1fs for collector to stop",
+                self._close_sound_delay_s,
+            )
+            await asyncio.sleep(self._close_sound_delay_s)
 
         chosen = random.choice(files)
         log.info("Playing: %s", chosen.name)
@@ -149,6 +168,9 @@ async def run_tool_announcer(bus: Any, cfg: Any) -> None:
     audio_dir = str(_cfg_get(cfg, base + ["audio_dir"], "AudioCoolness"))
     player = str(_cfg_get(cfg, base + ["player"], "mpg123"))
     probability = float(_cfg_get(cfg, base + ["announce_probability"], 0.8))
+    close_sound_delay_s = float(
+        _cfg_get(cfg, ["timing", "close_sound_delay_s"], 0.0)
+    )
 
     # Resolve relative path from cwd
     audio_path = Path(audio_dir)
@@ -156,14 +178,16 @@ async def run_tool_announcer(bus: Any, cfg: Any) -> None:
         audio_path = Path.cwd() / audio_dir
 
     log.info(
-        "Tool announcer running: audio_dir=%s player=%s probability=%.2f",
-        audio_path, player, probability,
+        "Tool announcer running: audio_dir=%s player=%s probability=%.2f"
+        " close_sound_delay_s=%.1f",
+        audio_path, player, probability, close_sound_delay_s,
     )
 
     announcer = _ToolAnnouncer(
         audio_dir=str(audio_path),
         player=player,
         announce_probability=probability,
+        close_sound_delay_s=close_sound_delay_s,
     )
 
     # Events: saw.on, saw.off, lathe.on, lathe.off (published by adc_watch)
@@ -195,7 +219,11 @@ if __name__ == "__main__":
         print(f"Tool Announcer Test - audio_dir={audio_dir}")
         print("-" * 50)
 
-        announcer = _ToolAnnouncer(audio_dir=audio_dir, announce_probability=1.0)
+        announcer = _ToolAnnouncer(
+            audio_dir=audio_dir,
+            announce_probability=1.0,
+            close_sound_delay_s=3.0,
+        )
 
         for tool in ("saw", "lathe"):
             for state in ("on", "off"):

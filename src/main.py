@@ -107,13 +107,13 @@ async def _run_app(config_path: str) -> None:
         tg.create_task(aqm_reader(bus, cfg, hw_uart), name="aqm_reader")
         tg.create_task(run_aqm_policy(bus, cfg, ser_tx=aqm_ser), name="aqm_policy")
         tg.create_task(run_aqm_announcer(bus, cfg), name="aqm_announcer")
-     
+
         tg.create_task(
-            run_lathe_gate_controller(bus, relays, relay_lock),
+            run_lathe_gate_controller(bus, relays, relay_lock, cfg),
             name="lathe_gate_ctrl",
         )
         tg.create_task(
-            run_saw_gate_controller(bus, relays, relay_lock),
+            run_saw_gate_controller(bus, relays, relay_lock, cfg),
             name="saw_gate_ctrl",
         )
 

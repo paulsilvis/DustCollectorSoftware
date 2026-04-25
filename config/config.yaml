@@ -1,3 +1,8 @@
+timing:
+  gate_delay_s: 0.5          # wait after tool.on before opening gate
+  solenoid_delay_s: 2.0      # additional wait after gate before collector motor
+  close_sound_delay_s: 5.0   # wait after collector stops before playing tool-off sound
+
 logging:
   level: INFO
 
