@@ -30,10 +30,11 @@ log_message "Using MPV player with yt-dlp for YouTube stream"
 
 # MPV command with YouTube stream
 # --fullscreen: run fullscreen
-# --no-audio: disable audio (comment out if you want sound)
+# --no-audio: disable audio (ISS feed broadcasts sound we don't want)
 # --profile=fast: use faster decoding for better performance
 # --hwdec=auto: hardware decoding if available
 mpv --fullscreen \
+    --no-audio \
     --profile=fast \
     --hwdec=auto \
     "$STREAM_URL" 2>&1 | while read line; do
