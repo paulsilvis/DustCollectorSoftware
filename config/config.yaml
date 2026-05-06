@@ -2,6 +2,7 @@ timing:
   gate_delay_s: 0.5          # wait after tool.on before opening gate
   solenoid_delay_s: 2.0      # additional wait after gate before collector motor
   close_sound_delay_s: 5.0   # wait after collector stops before playing tool-off sound
+  announce_delay_s: 5.0      # delay before fan/collector switches so announcement finishes first
 
 logging:
   level: INFO
@@ -47,19 +48,31 @@ debounce:
 
 aqm:
   announce_delay_s: 5.0   # tweak to match your announcement length
-  show_values: false # true        # only if you want the per-sample log lines
+  show_values: false           # set true to see per-sample log lines with timer state
   fan_on_when_bad: true
   interval_s: 0.8
-  bad_threshold: 35
+  announce_delay_s: 5.0        # delay before fan switches so announcement finishes first
+
+  # Thresholds (µg/m³ PM2.5, filtered)
+  bad_threshold: 35            # go BAD when filtered PM2.5 hits this
+  bad_off_threshold: 15        # go GOOD only when filtered PM2.5 drops this low
+                               # (wide gap = 20 µg/m³ hysteresis; was only 5 before)
   severe_threshold: 75
+
+  # Transition guards — prevent rapid toggling
+  min_on_s: 45                 # must be in BAD state for at least this long before GOOD allowed
+  good_hold_s: 120             # filtered PM2.5 must stay below bad_off_threshold
+                               # continuously for this long before aqm.good fires;
+                               # any exceedance resets the timer
+
+  # Filtering
+  filter_window_good: 5        # samples to average when air is GOOD (5 × 0.8s = 4s)
+  filter_window_bad_mult: 5    # win_bad = win_good × this (25 samples = 20s)
+  # filter_window_bad: 25      # or set explicitly instead of using the multiplier
+
   flush_in_waiting_threshold: 4096
   buf_max_bytes: 8192
-  good_hold_s: 120
-  min_on_s: 45
-  filter_window_good: 5
-  filter_window_bad_mult: 5
-  # OR explicitly:
-  # filter_window_bad: 25
+
   enabled: true
   audio_dir: "AudioCoolness/"
   player: mpg123
@@ -107,4 +120,3 @@ old_crappy_announce:
   speed_wpm: 155
   unsafe_text: 'Warning!!  Warning!! Warning!! Air quality is no longer safe, and the filter has been activated'
   safe_text: 'All clear! All clear! All clear!  The air quality is now considered safe. And Paul is a good boy.'
-
