@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any, Optional
@@ -33,10 +34,13 @@ async def run_aqm_policy(bus: EventBus, cfg: Any, *, ser_tx: Optional[Any]) -> N
         on transitions (not every sample).
       - safety.min_off_lockout_ms suppresses FAN ON for a short period after
         the fan was turned OFF (prevents rapid cycling).
+      - aqm.announce_delay_s inserts a pause before fan transitions so the
+        audio announcement can finish before the fan noise starts/stops.
     """
     fan_on_when_bad = bool(_cfg_get(cfg, ["aqm", "fan_on_when_bad"], False))
     pause_fun = bool(_cfg_get(cfg, ["safety", "pause_fun_on_severe_aqm"], False))
     min_off_lockout_ms = float(_cfg_get(cfg, ["safety", "min_off_lockout_ms"], 0.0))
+    announce_delay_s = float(_cfg_get(cfg, ["aqm", "announce_delay_s"], 0.0))
 
     fan_pin = int(_cfg_get(cfg, ["gpio", "fan_ssr"], 24))
     fan_active_high = bool(_cfg_get(cfg, ["gpio", "fan_active_high"], True))
@@ -57,12 +61,13 @@ async def run_aqm_policy(bus: EventBus, cfg: Any, *, ser_tx: Optional[Any]) -> N
 
     log.info(
         "AQM policy running: fan_on_when_bad=%s pause_fun_on_severe=%s "
-        "min_off_lockout_ms=%.0f fan_pin=%d fan_active_high=%s",
+        "min_off_lockout_ms=%.0f fan_pin=%d fan_active_high=%s announce_delay_s=%.1f",
         fan_on_when_bad,
         pause_fun,
         min_off_lockout_ms,
         fan_pin,
         fan_active_high,
+        announce_delay_s,
     )
 
     while True:
@@ -91,6 +96,14 @@ async def run_aqm_policy(bus: EventBus, cfg: Any, *, ser_tx: Optional[Any]) -> N
                             )
                             continue
 
+                    # Wait for announcement to finish before fan noise starts.
+                    if announce_delay_s > 0:
+                        log.info(
+                            "AQM policy: waiting %.1fs for announcement before FAN ON",
+                            announce_delay_s,
+                        )
+                        await asyncio.sleep(announce_delay_s)
+
                     try:
                         fan.write(True)
                         fan_is_on = True
@@ -99,6 +112,14 @@ async def run_aqm_policy(bus: EventBus, cfg: Any, *, ser_tx: Optional[Any]) -> N
                         log.exception("AQM policy: FAN ON failed")
             else:
                 if fan_is_on:
+                    # Wait for announcement to finish before fan noise stops.
+                    if announce_delay_s > 0:
+                        log.info(
+                            "AQM policy: waiting %.1fs for announcement before FAN OFF",
+                            announce_delay_s,
+                        )
+                        await asyncio.sleep(announce_delay_s)
+
                     try:
                         fan.write(False)
                         fan_is_on = False
