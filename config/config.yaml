@@ -46,6 +46,7 @@ debounce:
   off_min_ms: 900
 
 aqm:
+  announce_delay_s: 5.0   # tweak to match your announcement length
   show_values: false # true        # only if you want the per-sample log lines
   fan_on_when_bad: true
   interval_s: 0.8
