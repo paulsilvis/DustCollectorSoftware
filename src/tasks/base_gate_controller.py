@@ -11,6 +11,7 @@ from ..hardware.pcf_relays import PcfRelays
 log = logging.getLogger(__name__)
 
 RELAY_DEADTIME_S = 0.10
+RELAY_CONFIRM_DELAY_S = 0.15  # gap between first and confirmation relay send
 MAX_DRIVE_S = 6.0
 
 
@@ -33,13 +34,17 @@ class BaseGateController:
 
     Handles:
     - LED state (green=open, red=closed)
-    - Relay control with deadtime protection
+    - Relay control with deadtime protection and confirmation re-send
     - Timed gate motion with auto-stop
     - Safe cancellation and cleanup
 
     The gate_delay_s open delay is handled as a background task so the
     event queue keeps draining. A tool.off that arrives during the delay
     cancels the pending open — the gate never moves.
+
+    Relay commands are sent twice (with RELAY_CONFIRM_DELAY_S between sends)
+    to guard against silent I2C drops on the PCF8574. The second send is
+    idempotent — if the first got through, the relay is already in position.
     """
 
     def __init__(
@@ -68,26 +73,42 @@ class BaseGateController:
         self._pending_open: asyncio.Task[None] | None = None
 
     async def _relay_stop(self) -> None:
-        """Stop both relays."""
+        """Stop both relays, with confirmation re-send."""
         async with self.relay_lock:
             self.relays.stop_pair(
                 self.config.relay_open_bit,
-                self.config.relay_close_bit
+                self.config.relay_close_bit,
+            )
+        await asyncio.sleep(RELAY_CONFIRM_DELAY_S)
+        async with self.relay_lock:
+            self.relays.stop_pair(
+                self.config.relay_open_bit,
+                self.config.relay_close_bit,
             )
 
     async def _relay_start_open(self) -> None:
-        """Start opening the gate (with deadtime protection)."""
+        """Start opening the gate (deadtime protection + confirmation re-send)."""
+        # First send
         async with self.relay_lock:
             self.relays.set_relay(self.config.relay_close_bit, False)
         await asyncio.sleep(RELAY_DEADTIME_S)
         async with self.relay_lock:
             self.relays.set_relay(self.config.relay_open_bit, True)
+        # Confirmation send — catches silent I2C drops on PCF8574
+        await asyncio.sleep(RELAY_CONFIRM_DELAY_S)
+        async with self.relay_lock:
+            self.relays.set_relay(self.config.relay_open_bit, True)
 
     async def _relay_start_close(self) -> None:
-        """Start closing the gate (with deadtime protection)."""
+        """Start closing the gate (deadtime protection + confirmation re-send)."""
+        # First send
         async with self.relay_lock:
             self.relays.set_relay(self.config.relay_open_bit, False)
         await asyncio.sleep(RELAY_DEADTIME_S)
+        async with self.relay_lock:
+            self.relays.set_relay(self.config.relay_close_bit, True)
+        # Confirmation send — catches silent I2C drops on PCF8574
+        await asyncio.sleep(RELAY_CONFIRM_DELAY_S)
         async with self.relay_lock:
             self.relays.set_relay(self.config.relay_close_bit, True)
 
