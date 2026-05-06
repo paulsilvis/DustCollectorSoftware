@@ -64,6 +64,7 @@ aqm:
   good_hold_s: 120             # filtered PM2.5 must stay below bad_off_threshold
                                # continuously for this long before aqm.good fires;
                                # any exceedance resets the timer
+  post_good_delay_s: 4.0       # seconds to wait after fan stops before "air is safe" plays                               
 
   # Filtering
   filter_window_good: 5        # samples to average when air is GOOD (5 × 0.8s = 4s)

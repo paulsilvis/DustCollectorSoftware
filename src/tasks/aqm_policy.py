@@ -27,19 +27,27 @@ async def run_aqm_policy(bus: EventBus, cfg: Any, *, ser_tx: Optional[Any]) -> N
     """
     AQM policy (simple, event-driven):
       - On aqm.bad: optionally fan ON; if severe: send FUN PAUSE to ESP32 (edge).
-      - On aqm.good: optionally fan OFF.
+      - On aqm.good: optionally fan OFF immediately (no delay — the announcer
+        handles the post-off delay so the "air is safe" message plays in quiet).
+
+    Sequencing:
+      BAD:  aqm.bad fires → wait announce_delay_s → fan ON
+            (announcement plays in the quiet before the fan starts)
+      GOOD: aqm.good fires → fan OFF immediately → announcer waits
+            post_good_delay_s → "air is safe" plays in quiet after fan stops
 
     Notes:
-      - AQM reader is expected to handle filtering and publish aqm.bad/aqm.good
-        on transitions (not every sample).
+      - AQM reader handles filtering and publishes aqm.bad/aqm.good on
+        transitions only (not every sample).
       - safety.min_off_lockout_ms suppresses FAN ON for a short period after
         the fan was turned OFF (prevents rapid cycling).
-      - aqm.announce_delay_s inserts a pause before fan transitions so the
-        audio announcement can finish before the fan noise starts/stops.
     """
     fan_on_when_bad = bool(_cfg_get(cfg, ["aqm", "fan_on_when_bad"], False))
     pause_fun = bool(_cfg_get(cfg, ["safety", "pause_fun_on_severe_aqm"], False))
     min_off_lockout_ms = float(_cfg_get(cfg, ["safety", "min_off_lockout_ms"], 0.0))
+
+    # Delay before fan ON only — gives the "bad air" announcement time to play
+    # in quiet before the fan noise starts.
     announce_delay_s = float(_cfg_get(cfg, ["aqm", "announce_delay_s"], 0.0))
 
     fan_pin = int(_cfg_get(cfg, ["gpio", "fan_ssr"], 24))
@@ -56,7 +64,6 @@ async def run_aqm_policy(bus: EventBus, cfg: Any, *, ser_tx: Optional[Any]) -> N
 
     fan_is_on = False
     last_fan_off_at = time.monotonic()
-
     severe_latched = False
 
     log.info(
@@ -96,7 +103,7 @@ async def run_aqm_policy(bus: EventBus, cfg: Any, *, ser_tx: Optional[Any]) -> N
                             )
                             continue
 
-                    # Wait for announcement to finish before fan noise starts.
+                    # Wait so the "bad air" announcement finishes before fan noise starts.
                     if announce_delay_s > 0:
                         log.info(
                             "AQM policy: waiting %.1fs for announcement before FAN ON",
@@ -110,16 +117,11 @@ async def run_aqm_policy(bus: EventBus, cfg: Any, *, ser_tx: Optional[Any]) -> N
                         log.warning("AQM policy: FAN ON (bad air)")
                     except Exception:
                         log.exception("AQM policy: FAN ON failed")
-            else:
-                if fan_is_on:
-                    # Wait for announcement to finish before fan noise stops.
-                    if announce_delay_s > 0:
-                        log.info(
-                            "AQM policy: waiting %.1fs for announcement before FAN OFF",
-                            announce_delay_s,
-                        )
-                        await asyncio.sleep(announce_delay_s)
 
+            else:
+                # GOOD: turn fan off immediately. The announcer will wait
+                # post_good_delay_s before playing the "air is safe" message.
+                if fan_is_on:
                     try:
                         fan.write(False)
                         fan_is_on = False
