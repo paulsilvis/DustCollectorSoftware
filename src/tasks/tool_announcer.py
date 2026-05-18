@@ -111,6 +111,7 @@ class _ToolAnnouncer:
             state: "on" or "off"
         """
         ready_event = Event(type=f"{tool}.{state}.ready")
+
         category = f"{tool}_{state}"
         files = self._files.get(category, [])
 
