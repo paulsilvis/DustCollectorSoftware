@@ -110,7 +110,7 @@ class _ToolAnnouncer:
             tool:  "saw" or "lathe"
             state: "on" or "off"
         """
-        ready_event = Event(type=f"{tool}.{state}.ready")
+        ready_event = Event.now(f"{tool}.{state}.ready", src="tool_announcer")
 
         category = f"{tool}_{state}"
         files = self._files.get(category, [])
