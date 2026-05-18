@@ -38,7 +38,7 @@ async def run_saw_gate_controller(
     config = GateConfig(
         name="saw",
         event_on="saw.on.ready",
-        event_off="saw.off.ready",
+        event_off="saw.off",
         led_green_bit=SAW_LED_GREEN_BIT,
         led_red_bit=SAW_LED_RED_BIT,
         relay_open_bit=SAW_RELAY_OPEN_BIT,

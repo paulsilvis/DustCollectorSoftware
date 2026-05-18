@@ -39,7 +39,7 @@ async def run_lathe_gate_controller(
     config = GateConfig(
         name="lathe",
         event_on="lathe.on.ready",
-        event_off="lathe.off.ready",
+        event_off="lathe.off",
         led_green_bit=LATHE_LED_GREEN_BIT,
         led_red_bit=LATHE_LED_RED_BIT,
         relay_open_bit=LATHE_RELAY_OPEN_BIT,

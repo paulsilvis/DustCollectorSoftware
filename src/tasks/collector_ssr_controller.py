@@ -85,7 +85,7 @@ async def run_collector_ssr_controller(bus: EventBus, app_cfg: AppConfig) -> Non
                 for tool in cfg.tools:
                     if ev.type == f"{tool}.on.ready":
                         active.add(tool)
-                    elif ev.type == f"{tool}.off.ready":
+                    elif ev.type == f"{tool}.off":
                         active.discard(tool)
                 await asyncio.sleep(0)
         except asyncio.CancelledError:
@@ -132,7 +132,7 @@ async def run_collector_ssr_controller(bus: EventBus, app_cfg: AppConfig) -> Non
                     if tool not in active:
                         active.add(tool)
                         changed = True
-                elif ev.type == f"{tool}.off.ready":
+                elif ev.type == f"{tool}.off":
                     if tool in active:
                         active.remove(tool)
                         changed = True
