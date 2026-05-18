@@ -117,12 +117,12 @@ class _ToolAnnouncer:
 
         if random.random() > self._announce_probability:
             log.debug("Announcement skipped (probability): %s %s", tool, state)
-            self._bus.publish(ready_event)
+            await self._bus.publish(ready_event)
             return
 
         if not files:
             log.warning("No audio files for: %s", category)
-            self._bus.publish(ready_event)
+            await self._bus.publish(ready_event)
             return
 
         chosen = random.choice(files)
@@ -130,7 +130,7 @@ class _ToolAnnouncer:
         await self._play(chosen)
 
         # Audio finished — gate and collector may now act.
-        self._bus.publish(ready_event)
+        await self._bus.publish(ready_event)
         log.debug("Published %s", ready_event.type)
 
 
