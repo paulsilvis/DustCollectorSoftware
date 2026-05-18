@@ -1,8 +1,15 @@
 """
-Tool Announcer - plays audio announcements when tools turn on/off.
+Tool Announcer - plays audio announcements when tools turn on/off,
+then signals the gate and dust collector to act.
 
-Subscribes to machine.on / machine.off events from the event bus.
-Randomly selects from pre-generated ElevenLabs MP3 files.
+Sequencing (both ON and OFF):
+    adc_watch publishes  saw.on / saw.off
+    tool_announcer plays audio
+    tool_announcer publishes  saw.on.ready / saw.off.ready
+    gate controller and collector SSR act simultaneously on the .ready event
+
+If the probability gate skips the announcement, the .ready event is still
+published immediately so gate and collector are never blocked.
 
 Audio directory structure:
     AudioCoolness/
@@ -17,9 +24,6 @@ CONFIG (in config.yaml):
       audio_dir: "AudioCoolness"
       player: "mpg123"
       announce_probability: 0.8   # 0.0-1.0, chance of announcing each event
-
-    timing:
-      close_sound_delay_s: 3.0    # wait after collector stops before tool-off sound
 """
 
 from __future__ import annotations
@@ -32,6 +36,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from ..events import Event
+
 log = logging.getLogger("tool_announcer")
 
 
@@ -40,15 +46,15 @@ class _ToolAnnouncer:
 
     def __init__(
         self,
+        bus: Any,
         audio_dir: str,
         player: str = "mpg123",
         announce_probability: float = 0.8,
-        close_sound_delay_s: float = 0.0,
     ) -> None:
+        self._bus = bus
         self._audio_dir = Path(audio_dir)
         self._player = player
         self._announce_probability = announce_probability
-        self._close_sound_delay_s = close_sound_delay_s
 
         # Load audio files: _files["saw_on"] = [Path, Path, ...]
         self._files: dict[str, list[Path]] = {}
@@ -95,41 +101,40 @@ class _ToolAnnouncer:
 
     async def announce(self, tool: str, state: str) -> None:
         """
-        Play a random announcement for tool/state if probability check passes.
+        Play a random announcement for tool/state, then publish the .ready event.
 
-        For 'off' events, waits close_sound_delay_s before playing so the
-        collector motor has time to stop first.
+        The .ready event is always published — even when the probability gate
+        skips the audio — so the gate and collector are never blocked.
 
         Args:
             tool:  "saw" or "lathe"
             state: "on" or "off"
         """
-        # Probability gate
-        if random.random() > self._announce_probability:
-            log.debug("Announcement skipped (probability): %s %s", tool, state)
-            return
-
+        ready_event = Event(type=f"{tool}.{state}.ready")
         category = f"{tool}_{state}"
         files = self._files.get(category, [])
 
-        if not files:
-            log.warning("No audio files for: %s", category)
+        if random.random() > self._announce_probability:
+            log.debug("Announcement skipped (probability): %s %s", tool, state)
+            self._bus.publish(ready_event)
             return
 
-        if state == "off" and self._close_sound_delay_s > 0:
-            log.info(
-                "tool-off sound: waiting %.1fs for collector to stop",
-                self._close_sound_delay_s,
-            )
-            await asyncio.sleep(self._close_sound_delay_s)
+        if not files:
+            log.warning("No audio files for: %s", category)
+            self._bus.publish(ready_event)
+            return
 
         chosen = random.choice(files)
         log.info("Playing: %s", chosen.name)
         await self._play(chosen)
 
+        # Audio finished — gate and collector may now act.
+        self._bus.publish(ready_event)
+        log.debug("Published %s", ready_event.type)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Config helpers (same pattern as aqm_announcer_elevenlabs.py)
+# Config helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _cfg_get(cfg: Any, keys: list[str], default: Any) -> Any:
@@ -152,11 +157,11 @@ def _cfg_get(cfg: Any, keys: list[str], default: Any) -> Any:
 async def run_tool_announcer(bus: Any, cfg: Any) -> None:
     """
     Run the tool announcer task.
-    Subscribe to machine.on / machine.off and play audio announcements.
 
-    Add to main.py:
-        from .tasks.tool_announcer import run_tool_announcer
-        tg.create_task(run_tool_announcer(bus, cfg), name="tool_announcer")
+    Subscribes to saw.on / saw.off / lathe.on / lathe.off, plays audio,
+    then publishes saw.on.ready / saw.off.ready / lathe.on.ready / lathe.off.ready.
+
+    The gate controller and collector SSR both subscribe to the .ready events.
     """
     base = ["tool_announce"]
 
@@ -168,9 +173,6 @@ async def run_tool_announcer(bus: Any, cfg: Any) -> None:
     audio_dir = str(_cfg_get(cfg, base + ["audio_dir"], "AudioCoolness"))
     player = str(_cfg_get(cfg, base + ["player"], "mpg123"))
     probability = float(_cfg_get(cfg, base + ["announce_probability"], 0.8))
-    close_sound_delay_s = float(
-        _cfg_get(cfg, ["timing", "close_sound_delay_s"], 0.0)
-    )
 
     # Resolve relative path from cwd
     audio_path = Path(audio_dir)
@@ -178,19 +180,18 @@ async def run_tool_announcer(bus: Any, cfg: Any) -> None:
         audio_path = Path.cwd() / audio_dir
 
     log.info(
-        "Tool announcer running: audio_dir=%s player=%s probability=%.2f"
-        " close_sound_delay_s=%.1f",
-        audio_path, player, probability, close_sound_delay_s,
+        "Tool announcer running: audio_dir=%s player=%s probability=%.2f",
+        audio_path, player, probability,
     )
 
     announcer = _ToolAnnouncer(
+        bus=bus,
         audio_dir=str(audio_path),
         player=player,
         announce_probability=probability,
-        close_sound_delay_s=close_sound_delay_s,
     )
 
-    # Events: saw.on, saw.off, lathe.on, lathe.off (published by adc_watch)
+    # Subscribe to raw tool events from adc_watch.
     supported_events = {"saw.on", "saw.off", "lathe.on", "lathe.off"}
 
     q = bus.subscribe(maxsize=200)
@@ -214,15 +215,19 @@ async def run_tool_announcer(bus: Any, cfg: Any) -> None:
 if __name__ == "__main__":
     import sys
 
+    class _FakeBus:
+        def publish(self, ev: Any) -> None:
+            print(f"  [bus] published: {ev.type}")
+
     async def _test() -> None:
         audio_dir = sys.argv[1] if len(sys.argv) > 1 else "AudioCoolness"
         print(f"Tool Announcer Test - audio_dir={audio_dir}")
         print("-" * 50)
 
         announcer = _ToolAnnouncer(
+            bus=_FakeBus(),
             audio_dir=audio_dir,
             announce_probability=1.0,
-            close_sound_delay_s=3.0,
         )
 
         for tool in ("saw", "lathe"):
